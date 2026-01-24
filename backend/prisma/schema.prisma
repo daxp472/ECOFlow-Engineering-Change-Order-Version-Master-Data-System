@@ -31,7 +31,7 @@ model User {
   email     String     @unique
   password  String
   name      String
-  role      UserRole
+  roles     UserRole[] // Multiple roles per user
   status    UserStatus @default(ACTIVE)
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -298,3 +298,5 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+
