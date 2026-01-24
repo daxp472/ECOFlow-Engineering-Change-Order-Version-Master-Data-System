@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { signup, login, refreshAccessToken, logout, me } from '../controllers/auth.controller';
+import { signup, login, refreshAccessToken, logout, me, changePassword, updateProfile } from '../controllers/auth.controller';
 import { authenticate } from '../middlewares/auth.middleware';
+import { upload } from '../middlewares/upload.middleware';
 
 const router = Router();
 
@@ -37,6 +38,10 @@ router.post('/logout', logout);
  * @desc Get current user
  * @access Private
  */
+
+
 router.get('/me', authenticate, me);
+router.post('/change-password', authenticate, changePassword);
+router.put('/profile', authenticate, upload.single('avatar'), updateProfile);
 
 export default router;

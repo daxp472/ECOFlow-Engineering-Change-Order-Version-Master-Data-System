@@ -24,6 +24,7 @@ enum UserRole {
 enum UserStatus {
   ACTIVE
   DISABLED
+  PENDING
 }
 
 model User {
@@ -31,6 +32,7 @@ model User {
   email     String     @unique
   password  String
   name      String
+  avatar    String?    // URL to Cloudinary image
   roles     UserRole[] // Multiple roles per user
   status    UserStatus @default(ACTIVE)
   createdAt DateTime   @default(now())
