@@ -1,15 +1,30 @@
 import { api } from './client';
 export const operationsApi = {
     getActiveProducts: async () => {
-        const response = await api.get<any>('/operations/products');
-        return response.data.data.products;
+        try {
+            const response = await api.get<any>('/operations/products');
+            return response.data.data?.products || [];
+        } catch (error) {
+            console.error('Failed to fetch active products:', error);
+            return [];
+        }
     },
     getActiveBOMs: async () => {
-        const response = await api.get<any>('/operations/boms');
-        return response.data.data.boms;
+        try {
+            const response = await api.get<any>('/operations/boms');
+            return response.data.data?.boms || [];
+        } catch (error) {
+            console.error('Failed to fetch active BOMs:', error);
+            return [];
+        }
     },
     getActiveMatrix: async () => {
-        const response = await api.get('/operations/active-matrix');
-        return response.data.data;
+        try {
+            const response = await api.get('/operations/active-matrix');
+            return response.data.data || null;
+        } catch (error) {
+            console.error('Failed to fetch active matrix:', error);
+            return null;
+        }
     }
 };

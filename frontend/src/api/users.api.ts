@@ -25,15 +25,30 @@ export interface UserListResponse {
 
 export const usersApi = {
     getAll: async (params?: { page?: number; limit?: number; search?: string; role?: string }) => {
-        const response = await api.get<any>('/users', { params });
-        return response.data.data;
+        try {
+            const response = await api.get<any>('/users', { params });
+            return response.data.data || { users: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } };
+        } catch (error) {
+            console.error('Failed to fetch users:', error);
+            return { users: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } };
+        }
     },
     updateStatus: async (id: string, status: 'ACTIVE' | 'DISABLED' | 'PENDING') => {
-        const response = await api.patch<any>(`/users/${id}/status`, { status });
-        return response.data.data.user;
+        try {
+            const response = await api.patch<any>(`/users/${id}/status`, { status });
+            return response.data.data?.user;
+        } catch (error) {
+            console.error('Failed to update user status:', error);
+            throw error;
+        }
     },
     update: async (id: string, data: Partial<User> & { role?: string }) => {
-        const response = await api.put<any>(`/users/${id}`, data);
-        return response.data.data.user;
+        try {
+            const response = await api.put<any>(`/users/${id}`, data);
+            return response.data.data?.user;
+        } catch (error) {
+            console.error('Failed to update user:', error);
+            throw error;
+        }
     }
 };

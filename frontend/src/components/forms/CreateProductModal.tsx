@@ -24,22 +24,29 @@ export const CreateProductModal = ({ isOpen, onClose, onSuccess }: CreateProduct
         setError('');
 
         try {
-            await productsApi.create({
-                name,
-                // The backend creates the initial version based on additional data if we modify the endpoint
-                // or we call createProduct, which creates a product. 
-                // Wait, checking the backend controller, createProduct takes: name, description...
-                // Actually let's double check product.controller.ts, usually it creates a product.
-                // If we also want a version, we might need a separate call or specific payload.
-                // For now, I'll send name.
-            });
-            // Ideally we'd also create the version immediately or the backend handles it.
-            // I'll assume standard product creation for now.
+            if (!name.trim()) {
+                setError('Product name is required');
+                setLoading(false);
+                return;
+            }
+
+            const product = await productsApi.create({ name });
+
+            // If user provided pricing, create a new version with those prices
+            if (product && (salePrice || costPrice)) {
+                await productsApi.createVersion(product.id, {
+                    version: version,
+                    salePrice: parseFloat(salePrice) || 0,
+                    costPrice: parseFloat(costPrice) || 0,
+                });
+            }
+
             onSuccess();
             onClose();
             setName('');
             setSalePrice('');
             setCostPrice('');
+            setVersion('v1.0');
         } catch (err: any) {
             setError(err.message || 'Failed to create product');
         } finally {
@@ -61,13 +68,22 @@ export const CreateProductModal = ({ isOpen, onClose, onSuccess }: CreateProduct
                     placeholder="e.g. Solar Generator X2000"
                     required
                 />
-                {/* 
-                    If the backend createProduct doesn't accept price/version, we might need to adjust. 
-                    Based on earlier analysis: 
-                    Backend `createProduct` creates a product. 
-                    Backend `createProductVersion` creates a version.
-                    We might need a multi-step flow or just create the shell first. 
-                 */}
+                <Input
+                    label="Sale Price (USD)"
+                    type="number"
+                    value={salePrice}
+                    onChange={(e) => setSalePrice(e.target.value)}
+                    placeholder="0.00"
+                    step="0.01"
+                />
+                <Input
+                    label="Cost Price (USD)"
+                    type="number"
+                    value={costPrice}
+                    onChange={(e) => setCostPrice(e.target.value)}
+                    placeholder="0.00"
+                    step="0.01"
+                />
                 {error && <div className="text-red-500 text-sm">{error}</div>}
                 <div className="flex justify-end gap-2 mt-6">
                     <Button variant="ghost" onClick={onClose} type="button">Cancel</Button>

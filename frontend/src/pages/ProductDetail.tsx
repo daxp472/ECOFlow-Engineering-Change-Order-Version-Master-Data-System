@@ -29,18 +29,22 @@ export const ProductDetail = () => {
         try {
             // Fetch product details
             const productData = await productsApi.getById(productId);
-            setProduct(productData);
+            setProduct(productData || null);
 
             // Assume getById returns versions in a property or we fetch them separately
             // Based on checking the controller, getProductById returns { product: { versions: [...] } }
             // But our api wrapper unwrap it to response.data.data.product
             // Let's assume the API returns the product with versions included as per controller logic.
-            if ((productData as any).versions) {
-                setVersions((productData as any).versions);
+            if (productData && (productData as any).versions) {
+                setVersions(Array.isArray((productData as any).versions) ? (productData as any).versions : []);
+            } else {
+                setVersions([]);
             }
 
         } catch (error) {
             console.error('Failed to load product', error);
+            setProduct(null);
+            setVersions([]);
         } finally {
             setLoading(false);
         }
@@ -49,15 +53,12 @@ export const ProductDetail = () => {
     const handleArchive = async () => {
         if (!product || !confirm('Are you sure you want to archive this product? This action cannot be undone easily.')) return;
         try {
-            // Assuming we have an archive endpoint in our api client. 
-            // If not, we might need to add it or use a generic update.
-            // Checking products.api.ts... verify if archive exists.
-            // If not, I will add it. For now, let's assume standard update to status 'ARCHIVED' works or add specific call.
-            // Actually, `archiveProduct` is in controller but maybe not in API client yet.
-            // I'll check and fix if needed.
-            console.log('Archiving product...');
+            await productsApi.archive(product.id);
+            alert('Product archived successfully');
+            navigate('/products');
         } catch (error) {
             console.error('Failed to archive product', error);
+            alert('Failed to archive product');
         }
     };
 

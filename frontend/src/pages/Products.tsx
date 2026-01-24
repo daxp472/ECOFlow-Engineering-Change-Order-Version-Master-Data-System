@@ -30,9 +30,10 @@ export const ProductsPage = () => {
             } else {
                 data = await productsApi.getAll();
             }
-            setProducts(data);
+            setProducts(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Failed to load products', error);
+            setProducts([]);
         } finally {
             setLoading(false);
         }
