@@ -11,7 +11,8 @@ import {
     LogOut,
     Bell,
     Search,
-    User
+    User,
+    UserPlus
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -34,20 +35,21 @@ export const AppLayout = () => {
         { icon: Layers, label: 'Bill of Materials', path: '/boms' },
         { icon: GitPullRequest, label: 'ECOs', path: '/ecos' },
         { icon: FileText, label: 'Reports', path: '/reports' },
-        { icon: User, label: 'Users', path: '/users' },
-        { icon: Settings, label: 'Settings', path: '/settings' },
+        { icon: UserPlus, label: 'Role Requests', path: '/role-requests' },
+        { icon: User, label: 'Users', path: '/users', adminOnly: true },
+        { icon: Settings, label: 'Settings', path: '/settings', adminOnly: true },
     ];
 
-    // Filter for Operations
-    if (isOperations) {
+    // Filter for Operations (remove ECOs)
+    if (isOperations && !user?.roles?.some(r => ['ENGINEERING', 'APPROVER', 'ADMIN'].includes(r))) {
         navItems = navItems.filter(item =>
-            ['Dashboard', 'Products', 'Bill of Materials', 'Reports'].includes(item.label)
+            ['Dashboard', 'Products', 'Bill of Materials', 'Reports', 'Role Requests'].includes(item.label)
         );
     }
 
-    // Filter for Non-Admin (Hide Settings and Users)
+    // Filter admin-only items
     if (!isAdmin) {
-        navItems = navItems.filter(item => !['Settings', 'Users'].includes(item.label));
+        navItems = navItems.filter(item => !item.adminOnly);
     }
 
     return (
@@ -90,6 +92,35 @@ export const AppLayout = () => {
                             </NavLink>
                         );
                     })}
+                    
+                    {/* Admin Section */}
+                    {isAdmin && (
+                        <>
+                            <div className="text-xs font-semibold text-zinc-500 mb-4 px-2 tracking-wider mt-6">ADMIN</div>
+                            <NavLink
+                                to="/admin/role-requests"
+                                className={({ isActive }) => clsx(
+                                    "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative",
+                                    isActive
+                                        ? "text-white bg-white/5 border border-white/5 shadow-inner"
+                                        : "text-zinc-400 hover:text-white hover:bg-white/5"
+                                )}
+                            >
+                                {({ isActive }) => (
+                                    <>
+                                        <UserPlus className={clsx("w-5 h-5 transition-colors", isActive ? "text-primary" : "text-zinc-500 group-hover:text-zinc-300")} />
+                                        <span className="font-medium text-sm">Review Requests</span>
+                                        {isActive && (
+                                            <motion.div
+                                                layoutId="activeNav"
+                                                className="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
+                                            />
+                                        )}
+                                    </>
+                                )}
+                            </NavLink>
+                        </>
+                    )}
                 </nav>
 
                 <div className="p-4 border-t border-white/5">

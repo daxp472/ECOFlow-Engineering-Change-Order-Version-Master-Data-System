@@ -15,6 +15,8 @@ import { SettingsPage } from './pages/Settings';
 import { Signup } from './pages/Signup';
 import { UsersPage } from './pages/Users';
 import { ReportsPage } from './pages/Reports';
+import { RoleRequestPage } from './pages/RoleRequests';
+import { AdminRoleRequestsPage } from './pages/AdminRoleRequests';
 
 // Protected Route Component - requires authentication
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -100,6 +102,16 @@ function App() {
               <Route path="/users" element={
                 <RoleProtectedRoute allowedRoles={['ADMIN']}>
                   <UsersPage />
+                </RoleProtectedRoute>
+              } />
+
+              {/* Role Requests - All authenticated users */}
+              <Route path="/role-requests" element={<RoleRequestPage />} />
+
+              {/* Admin Role Requests - ADMIN only */}
+              <Route path="/admin/role-requests" element={
+                <RoleProtectedRoute allowedRoles={['ADMIN']}>
+                  <AdminRoleRequestsPage />
                 </RoleProtectedRoute>
               } />
             </Route>

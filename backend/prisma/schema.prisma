@@ -27,6 +27,12 @@ enum UserStatus {
   PENDING
 }
 
+enum RoleRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id             String     @id @default(cuid())
   email          String     @unique
@@ -46,8 +52,31 @@ model User {
   refreshTokens      RefreshToken[]
   productAttachments ProductAttachment[]
   ecoAttachments     ECOAttachment[]
+  roleRequests       RoleRequest[]        @relation("UserRoleRequests")
+  reviewedRequests   RoleRequest[]        @relation("ReviewedRoleRequests")
 
   @@map("users")
+}
+
+model RoleRequest {
+  id             String            @id @default(cuid())
+  userId         String
+  requestedRoles UserRole[]
+  reason         String?
+  status         RoleRequestStatus @default(PENDING)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  // Relations
+  user     User  @relation("UserRoleRequests", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer User? @relation("ReviewedRoleRequests", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("role_requests")
 }
 
 model RefreshToken {
@@ -306,6 +335,8 @@ enum AuditAction {
   ARCHIVE
   STAGE_TRANSITION
   VERSION_CREATE
+  ROLE_REQUEST_APPROVED
+  ROLE_REQUEST_REJECTED
 }
 
 enum EntityType {

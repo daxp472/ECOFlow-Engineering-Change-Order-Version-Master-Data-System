@@ -14,6 +14,7 @@ import comparisonRoutes from './routes/comparison.routes';
 import settingsRoutes from './routes/settings.routes';
 import operationsRoutes from './routes/operations.routes'; // CRITICAL FIX: Operations routes
 import attachmentRoutes from './routes/attachment.routes'; // Attachment routes
+import roleRequestRoutes from './routes/roleRequest.routes'; // Role request routes
 
 // Load environment variables
 dotenv.config();
@@ -62,6 +63,7 @@ app.use('/api/comparison', comparisonRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/operations', operationsRoutes); // CRITICAL FIX: Operations endpoints for OPERATIONS role
 app.use('/api', attachmentRoutes); // Attachment upload endpoints
+app.use('/api/role-requests', roleRequestRoutes); // Role request endpoints
 
 // 404 Handler
 app.use((_req: Request, res: Response) => {
