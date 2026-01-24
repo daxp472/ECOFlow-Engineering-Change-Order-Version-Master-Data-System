@@ -3,6 +3,15 @@ import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.routes';
+import userRoutes from './routes/user.routes';
+import productRoutes from './routes/product.routes';
+import bomRoutes from './routes/bom.routes';
+import ecoRoutes from './routes/eco.routes';
+import reportRoutes from './routes/report.routes';
+import roleRoutes from './routes/role.routes';
+import notificationRoutes from './routes/notification.routes';
+import comparisonRoutes from './routes/comparison.routes';
+import settingsRoutes from './routes/settings.routes';
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +48,15 @@ app.get('/', (_req: Request, res: Response) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/boms', bomRoutes);
+app.use('/api/ecos', ecoRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/comparison', comparisonRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // 404 Handler
 app.use((_req: Request, res: Response) => {
