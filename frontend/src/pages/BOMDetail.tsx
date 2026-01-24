@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { bomsApi } from '../api/boms.api';
 import type { BOM } from '../api/boms.api';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, Layers, Component, Settings, Plus } from 'lucide-react';
+import { ArrowLeft, Layers, Component, Settings, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const BOMDetail = () => {
@@ -13,8 +13,13 @@ export const BOMDetail = () => {
     const { user } = useAuth();
     const [bom, setBom] = useState<BOM | null>(null);
     const [loading, setLoading] = useState(true);
+    const [showAddComponent, setShowAddComponent] = useState(false);
+    const [showAddOperation, setShowAddOperation] = useState(false);
+    const [newComponent, setNewComponent] = useState({ productId: '', quantity: 1 });
+    const [newOperation, setNewOperation] = useState({ name: '', workCenter: '', time: 0, sequence: 0 });
 
     const isEngineering = user?.roles?.includes('ENGINEERING') || user?.roles?.includes('ADMIN');
+    const canEdit = isEngineering && bom?.status === 'DRAFT';
 
     useEffect(() => {
         if (id) {
@@ -32,6 +37,52 @@ export const BOMDetail = () => {
             setBom(null);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleAddComponent = async () => {
+        if (!bom) return;
+        try {
+            await bomsApi.addComponent(bom.id, newComponent);
+            setNewComponent({ productId: '', quantity: 1 });
+            setShowAddComponent(false);
+            loadBOM(bom.id);
+        } catch (error) {
+            console.error('Failed to add component', error);
+            alert('Failed to add component');
+        }
+    };
+
+    const handleRemoveComponent = async (componentId: string) => {
+        if (!bom) return;
+        try {
+            await bomsApi.removeComponent(bom.id, componentId);
+            loadBOM(bom.id);
+        } catch (error) {
+            console.error('Failed to remove component', error);
+        }
+    };
+
+    const handleAddOperation = async () => {
+        if (!bom) return;
+        try {
+            await bomsApi.addOperation(bom.id, newOperation);
+            setNewOperation({ name: '', workCenter: '', time: 0, sequence: 0 });
+            setShowAddOperation(false);
+            loadBOM(bom.id);
+        } catch (error) {
+            console.error('Failed to add operation', error);
+            alert('Failed to add operation');
+        }
+    };
+
+    const handleRemoveOperation = async (operationId: string) => {
+        if (!bom) return;
+        try {
+            await bomsApi.removeOperation(bom.id, operationId);
+            loadBOM(bom.id);
+        } catch (error) {
+            console.error('Failed to remove operation', error);
         }
     };
 
@@ -84,10 +135,40 @@ export const BOMDetail = () => {
                     animate={{ opacity: 1, x: 0 }}
                     className="glass-card p-6 rounded-xl border border-white/5"
                 >
-                    <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                        <Component className="w-5 h-5 text-primary" />
-                        Components ({components.length})
-                    </h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                            <Component className="w-5 h-5 text-primary" />
+                            Components ({components.length})
+                        </h2>
+                        {canEdit && (
+                            <Button size="sm" onClick={() => setShowAddComponent(!showAddComponent)} className="flex items-center gap-1">
+                                <Plus className="w-4 h-4" /> Add
+                            </Button>
+                        )}
+                    </div>
+
+                    {showAddComponent && canEdit && (
+                        <div className="bg-zinc-900/50 p-4 rounded-lg mb-4 space-y-3">
+                            <input
+                                type="text"
+                                placeholder="Product ID"
+                                value={newComponent.productId}
+                                onChange={(e) => setNewComponent({ ...newComponent, productId: e.target.value })}
+                                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                            />
+                            <input
+                                type="number"
+                                placeholder="Quantity"
+                                value={newComponent.quantity}
+                                onChange={(e) => setNewComponent({ ...newComponent, quantity: parseInt(e.target.value) })}
+                                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                            />
+                            <div className="flex gap-2">
+                                <Button size="sm" onClick={handleAddComponent} className="bg-emerald-600 hover:bg-emerald-700">Save</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setShowAddComponent(false)}>Cancel</Button>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
@@ -104,7 +185,17 @@ export const BOMDetail = () => {
                                             <td className="px-4 py-3 text-white">
                                                 {comp.product?.name || comp.productId}
                                             </td>
-                                            <td className="px-4 py-3 text-zinc-300">{comp.quantity}</td>
+                                            <td className="px-4 py-3 text-zinc-300 flex justify-between items-center">
+                                                <span>{comp.quantity}</span>
+                                                {canEdit && (
+                                                    <button
+                                                        onClick={() => handleRemoveComponent(comp.id)}
+                                                        className="text-rose-500 hover:text-rose-400 ml-2"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))
                                 ) : (
@@ -126,10 +217,54 @@ export const BOMDetail = () => {
                     transition={{ delay: 0.1 }}
                     className="glass-card p-6 rounded-xl border border-white/5"
                 >
-                    <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                        <Settings className="w-5 h-5 text-zinc-400" />
-                        Operations ({operations.length})
-                    </h2>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+                            <Settings className="w-5 h-5 text-zinc-400" />
+                            Operations ({operations.length})
+                        </h2>
+                        {canEdit && (
+                            <Button size="sm" onClick={() => setShowAddOperation(!showAddOperation)} className="flex items-center gap-1">
+                                <Plus className="w-4 h-4" /> Add
+                            </Button>
+                        )}
+                    </div>
+
+                    {showAddOperation && canEdit && (
+                        <div className="bg-zinc-900/50 p-4 rounded-lg mb-4 space-y-3">
+                            <input
+                                type="text"
+                                placeholder="Operation Name"
+                                value={newOperation.name}
+                                onChange={(e) => setNewOperation({ ...newOperation, name: e.target.value })}
+                                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                            />
+                            <input
+                                type="text"
+                                placeholder="Work Center"
+                                value={newOperation.workCenter}
+                                onChange={(e) => setNewOperation({ ...newOperation, workCenter: e.target.value })}
+                                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                            />
+                            <input
+                                type="number"
+                                placeholder="Time (minutes)"
+                                value={newOperation.time}
+                                onChange={(e) => setNewOperation({ ...newOperation, time: parseInt(e.target.value) })}
+                                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                            />
+                            <input
+                                type="number"
+                                placeholder="Sequence"
+                                value={newOperation.sequence}
+                                onChange={(e) => setNewOperation({ ...newOperation, sequence: parseInt(e.target.value) })}
+                                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                            />
+                            <div className="flex gap-2">
+                                <Button size="sm" onClick={handleAddOperation} className="bg-emerald-600 hover:bg-emerald-700">Save</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setShowAddOperation(false)}>Cancel</Button>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="overflow-x-auto">
                         <table className="w-full text-left">
@@ -148,7 +283,17 @@ export const BOMDetail = () => {
                                             <td className="px-4 py-3 text-zinc-500 font-mono">{op.sequence}</td>
                                             <td className="px-4 py-3 text-white">{op.name}</td>
                                             <td className="px-4 py-3 text-zinc-300">{op.workCenter}</td>
-                                            <td className="px-4 py-3 text-zinc-300">{op.time}</td>
+                                            <td className="px-4 py-3 text-zinc-300 flex justify-between items-center">
+                                                <span>{op.time}</span>
+                                                {canEdit && (
+                                                    <button
+                                                        onClick={() => handleRemoveOperation(op.id)}
+                                                        className="text-rose-500 hover:text-rose-400 ml-2"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </td>
                                         </tr>
                                     ))
                                 ) : (
