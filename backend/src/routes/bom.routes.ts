@@ -6,6 +6,8 @@ import {
   updateBOM,
   addComponent,
   addOperation,
+  removeComponent,
+  removeOperation,
 } from '../controllers/bom.controller';
 import { authenticate, authorize } from '../middlewares/auth.middleware';
 
@@ -18,6 +20,8 @@ router.get('/', getAllBOMs);
 router.get('/:id', getBOMById);
 router.put('/:id', authorize('ADMIN', 'ENGINEERING'), updateBOM);
 router.post('/:id/components', authorize('ADMIN', 'ENGINEERING'), addComponent);
+router.delete('/:id/components/:componentId', authorize('ADMIN', 'ENGINEERING'), removeComponent);
 router.post('/:id/operations', authorize('ADMIN', 'ENGINEERING'), addOperation);
+router.delete('/:id/operations/:operationId', authorize('ADMIN', 'ENGINEERING'), removeOperation);
 
 export default router;
