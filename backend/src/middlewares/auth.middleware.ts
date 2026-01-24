@@ -14,15 +14,21 @@ export const authenticate = (
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token: string | undefined;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (req.query && req.query.token) {
+      token = req.query.token as string;
+    }
+
+    if (!token) {
       res.status(401).json({
         status: 'error',
         message: 'No token provided',
       });
       return;
     }
-
-    const token = authHeader.substring(7);
     const decoded = verifyAccessToken(token);
 
     req.user = decoded;
