@@ -1,13 +1,13 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { ECOStatus, ECOType, Prisma } from '@prisma/client';
-// import { sendNotificationToUser, broadcastNotification } from './notification.controller'; // For future use
+import { sendNotificationToUser } from './notification.controller';
 
 // Internal function to apply ECO (can be called from transaction)
 async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.TransactionClient): Promise<any> {
   const eco = await tx.eCO.findUnique({
     where: { id: ecoId },
-    include: { 
+    include: {
       product: {
         include: {
           currentVersion: true,
@@ -33,11 +33,11 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
 
   if (eco.type === 'PRODUCT') {
     const currentVersion = eco.product.currentVersion;
-    
+
     if (!currentVersion) {
       throw new Error('Product has no current version');
     }
-    
+
     if (createNewVersion) {
       const versionNumber = parseFloat(currentVersion.version.replace('v', ''));
       const newVersionNumber = `v${(versionNumber + 1.0).toFixed(1)}`;
@@ -51,11 +51,11 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
         data: {
           productId: eco.productId,
           version: newVersionNumber,
-          salePrice: draftData.product?.salePrice !== undefined 
-            ? draftData.product.salePrice 
+          salePrice: draftData.product?.salePrice !== undefined
+            ? draftData.product.salePrice
             : currentVersion.salePrice,
-          costPrice: draftData.product?.costPrice !== undefined 
-            ? draftData.product.costPrice 
+          costPrice: draftData.product?.costPrice !== undefined
+            ? draftData.product.costPrice
             : currentVersion.costPrice,
           attachments: draftData.product?.attachments || currentVersion.attachments,
           status: 'ACTIVE',
@@ -64,13 +64,13 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
 
       await tx.product.update({
         where: { id: eco.productId },
-        data: { 
+        data: {
           currentVersionId: newVersion.id,
           status: 'ACTIVE',
         },
       });
 
-      result = { 
+      result = {
         action: 'VERSION_CREATED',
         oldVersion: currentVersion.version,
         newVersion: newVersionNumber,
@@ -94,17 +94,17 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
       await tx.productVersion.update({
         where: { id: currentVersion.id },
         data: {
-          salePrice: draftData.product?.salePrice !== undefined 
-            ? draftData.product.salePrice 
+          salePrice: draftData.product?.salePrice !== undefined
+            ? draftData.product.salePrice
             : currentVersion.salePrice,
-          costPrice: draftData.product?.costPrice !== undefined 
-            ? draftData.product.costPrice 
+          costPrice: draftData.product?.costPrice !== undefined
+            ? draftData.product.costPrice
             : currentVersion.costPrice,
           attachments: draftData.product?.attachments || currentVersion.attachments,
         },
       });
 
-      result = { 
+      result = {
         action: 'VERSION_UPDATED',
         version: currentVersion.version,
         versionId: currentVersion.id,
@@ -115,7 +115,7 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
   if (eco.type === 'BOM' && eco.bomId) {
     const currentBom = eco.bom!;
     const currentVersion = currentBom.version;
-    
+
     if (createNewVersion) {
       const versionNumber = parseFloat(currentVersion.replace('v', ''));
       const newVersionNumber = `v${(versionNumber + 1.0).toFixed(1)}`;
@@ -157,7 +157,7 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
         });
       }
 
-      result = { 
+      result = {
         action: 'VERSION_CREATED',
         oldVersion: currentVersion,
         newVersion: newVersionNumber,
@@ -205,7 +205,7 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
         });
       }
 
-      result = { 
+      result = {
         action: 'VERSION_UPDATED',
         version: currentVersion,
         bomId: eco.bomId,
@@ -248,7 +248,7 @@ export const createECO = async (req: Request, res: Response): Promise<void> => {
     }
 
     // CRITICAL FIX: Validate product is not archived
-    const product = await prisma.product.findUnique({ 
+    const product = await prisma.product.findUnique({
       where: { id: productId },
       select: { status: true, name: true }
     });
@@ -259,16 +259,16 @@ export const createECO = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (product.status === 'ARCHIVED') {
-      res.status(400).json({ 
-        status: 'error', 
-        message: `Cannot create ECO for archived product "${product.name}". Archived products cannot be modified.` 
+      res.status(400).json({
+        status: 'error',
+        message: `Cannot create ECO for archived product "${product.name}". Archived products cannot be modified.`
       });
       return;
     }
 
     // CRITICAL FIX: Validate BOM is not archived (if BOM ECO)
     if (bomId) {
-      const bom = await prisma.bOM.findUnique({ 
+      const bom = await prisma.bOM.findUnique({
         where: { id: bomId },
         select: { status: true, version: true }
       });
@@ -279,9 +279,9 @@ export const createECO = async (req: Request, res: Response): Promise<void> => {
       }
 
       if (bom.status === 'ARCHIVED') {
-        res.status(400).json({ 
-          status: 'error', 
-          message: `Cannot create ECO for archived BOM (version ${bom.version}). Archived BOMs cannot be modified.` 
+        res.status(400).json({
+          status: 'error',
+          message: `Cannot create ECO for archived BOM (version ${bom.version}). Archived BOMs cannot be modified.`
         });
         return;
       }
@@ -449,25 +449,25 @@ export const submitECO = async (req: Request, res: Response): Promise<void> => {
 
     // CRITICAL FIX: Validate mandatory fields before submission
     if (!eco.title || eco.title.trim() === '') {
-      res.status(400).json({ 
-        status: 'error', 
-        message: 'Cannot submit ECO: Title is required' 
+      res.status(400).json({
+        status: 'error',
+        message: 'Cannot submit ECO: Title is required'
       });
       return;
     }
 
     if (!eco.effectiveDate) {
-      res.status(400).json({ 
-        status: 'error', 
-        message: 'Cannot submit ECO: Effective date is required' 
+      res.status(400).json({
+        status: 'error',
+        message: 'Cannot submit ECO: Effective date is required'
       });
       return;
     }
 
     if (!eco.draftData || Object.keys(eco.draftData).length === 0) {
-      res.status(400).json({ 
-        status: 'error', 
-        message: 'Cannot submit ECO: Draft changes are required. Please specify what changes to make.' 
+      res.status(400).json({
+        status: 'error',
+        message: 'Cannot submit ECO: Draft changes are required. Please specify what changes to make.'
       });
       return;
     }
@@ -475,17 +475,17 @@ export const submitECO = async (req: Request, res: Response): Promise<void> => {
     // Validate draft data content based on ECO type
     const draft = eco.draftData as any;
     if (eco.type === 'PRODUCT' && !draft.product) {
-      res.status(400).json({ 
-        status: 'error', 
-        message: 'Product ECO must include product changes in draft data' 
+      res.status(400).json({
+        status: 'error',
+        message: 'Product ECO must include product changes in draft data'
       });
       return;
     }
 
     if (eco.type === 'BOM' && !draft.bom) {
-      res.status(400).json({ 
-        status: 'error', 
-        message: 'BOM ECO must include BOM changes (components/operations) in draft data' 
+      res.status(400).json({
+        status: 'error',
+        message: 'BOM ECO must include BOM changes (components/operations) in draft data'
       });
       return;
     }
@@ -584,7 +584,7 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
         // Check if this is the last stage
         const stages = await tx.approvalStage.findMany({ orderBy: { order: 'asc' } });
         const currentStageIndex = stages.findIndex((s) => s.id === currentStage.id);
-        
+
         if (currentStageIndex < stages.length - 1) {
           // Move to next stage
           const nextStage = stages[currentStageIndex + 1];
@@ -654,14 +654,28 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
 
     res.status(200).json({
       status: 'success',
-      message: approved 
+      message: approved
         ? (result.newStatus === ECOStatus.APPLIED ? 'ECO approved and applied successfully' : 'ECO approved')
         : 'ECO rejected',
-      data: { 
+      data: {
         newStatus: result.newStatus,
-        appliedResult: result.appliedResult 
+        appliedResult: result.appliedResult
       },
     });
+
+    // Notify Creator
+    if (eco.createdBy) {
+      const message = approved
+        ? `Your ECO "${eco.title}" has been APPROVED at stage: ${eco.currentStage}`
+        : `Your ECO "${eco.title}" has been REJECTED at stage: ${eco.currentStage}`;
+
+      await sendNotificationToUser(eco.createdBy, {
+        type: approved ? 'SUCCESS' : 'error',
+        title: `ECO ${approved ? 'Approved' : 'Rejected'}`,
+        message,
+        data: { ecoId: eco.id }
+      });
+    }
   } catch (error: any) {
     console.error('Review ECO error:', error);
     res.status(500).json({ status: 'error', message: 'Failed to review ECO' });
@@ -676,7 +690,7 @@ export const applyECO = async (req: Request, res: Response): Promise<void> => {
 
     const eco = await prisma.eCO.findUnique({
       where: { id },
-      include: { 
+      include: {
         product: {
           include: {
             currentVersion: true,

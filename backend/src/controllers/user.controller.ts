@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { hashPassword } from '../utils/password.utils';
 import { UserStatus } from '@prisma/client';
+import { sendNotificationToUser } from './notification.controller';
 
 // Get all users (Admin only)
 export const getAllUsers = async (req: Request, res: Response): Promise<void> => {
@@ -104,12 +105,13 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, role, email } = req.body;
+    const { name, role, email, status } = req.body;
 
     const updateData: any = {};
     if (name) updateData.name = name;
-    if (role) updateData.role = role;
+    if (role) updateData.roles = [role]; // Map single role to array
     if (email) updateData.email = email;
+    if (status) updateData.status = status;
 
     const user = await prisma.user.update({
       where: { id },
@@ -129,6 +131,14 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       message: 'User updated successfully',
       data: { user },
     });
+
+    if (status) {
+      await updateUserStatusNotificationLogic(id, status);
+    }
+
+    if (status) {
+      await updateUserStatusNotificationLogic(id, status);
+    }
   } catch (error: any) {
     if (error.code === 'P2002') {
       res.status(409).json({
@@ -140,6 +150,25 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({
       status: 'error',
       message: 'Failed to update user',
+    });
+  }
+};
+
+// Update user status (enable/disable) for notifications
+export const updateUserStatusNotificationLogic = async (id: string, status: string) => {
+  // Notify user if status changed
+  if (status === 'ACTIVE') {
+    await sendNotificationToUser(id, {
+      type: 'SUCCESS',
+      title: 'Account Activated',
+      message: 'Your account has been approved and activated. You can now access the system.',
+    });
+  } else if (status === 'DISABLED') {
+    // Optionally notify them
+    await sendNotificationToUser(id, {
+      type: 'WARNING',
+      title: 'Account Disabled',
+      message: 'Your account has been disabled by an administrator.',
     });
   }
 };
@@ -167,6 +196,7 @@ export const updateUserStatus = async (req: Request, res: Response): Promise<voi
         name: true,
         roles: true,
         status: true,
+        updatedAt: true,
       },
     });
 
@@ -175,6 +205,8 @@ export const updateUserStatus = async (req: Request, res: Response): Promise<voi
       message: `User ${status === 'ACTIVE' ? 'enabled' : 'disabled'} successfully`,
       data: { user },
     });
+
+    await updateUserStatusNotificationLogic(id, status);
   } catch (error: any) {
     res.status(500).json({
       status: 'error',
