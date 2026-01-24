@@ -300,3 +300,33 @@ model AuditLog {
 }
 
 
+// ========================================
+// NOTIFICATIONS & REAL-TIME EVENTS
+// ========================================
+
+enum NotificationType {
+  ECO_CREATED
+  ECO_SUBMITTED
+  ECO_APPROVED
+  ECO_REJECTED
+  ECO_APPLIED
+  STAGE_CHANGED
+  APPROVAL_REQUIRED
+  VERSION_CREATED
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  data      Json? // Additional context
+  userId    String? // If null, it's a broadcast
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
