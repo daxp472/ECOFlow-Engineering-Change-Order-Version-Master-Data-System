@@ -11,6 +11,26 @@ export const createBOM = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // CRITICAL FIX: Validate all component products are not archived
+    if (components && components.length > 0) {
+      const componentProductIds = components.map((c: any) => c.productId);
+      const archivedProducts = await prisma.product.findMany({
+        where: {
+          id: { in: componentProductIds },
+          status: 'ARCHIVED',
+        },
+        select: { id: true, name: true },
+      });
+
+      if (archivedProducts.length > 0) {
+        res.status(400).json({
+          status: 'error',
+          message: `Cannot use archived products in BOM: ${archivedProducts.map(p => p.name).join(', ')}`,
+        });
+        return;
+      }
+    }
+
     const bom = await prisma.bOM.create({
       data: {
         productVersionId,
@@ -114,6 +134,25 @@ export const updateBOM = async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
     const { version, status } = req.body;
 
+    // CRITICAL FIX: Prevent editing archived BOMs
+    const existingBom = await prisma.bOM.findUnique({ 
+      where: { id },
+      select: { status: true, version: true }
+    });
+
+    if (!existingBom) {
+      res.status(404).json({ status: 'error', message: 'BoM not found' });
+      return;
+    }
+
+    if (existingBom.status === 'ARCHIVED') {
+      res.status(400).json({ 
+        status: 'error', 
+        message: 'Cannot modify archived BOMs. Archived data is read-only for traceability.' 
+      });
+      return;
+    }
+
     const bom = await prisma.bOM.update({
       where: { id },
       data: { version, status },
@@ -134,6 +173,44 @@ export const addComponent = async (req: Request, res: Response): Promise<void> =
   try {
     const { id } = req.params;
     const { productId, quantity } = req.body;
+
+    // CRITICAL FIX: Check if BOM is archived
+    const bom = await prisma.bOM.findUnique({ 
+      where: { id },
+      select: { status: true }
+    });
+
+    if (!bom) {
+      res.status(404).json({ status: 'error', message: 'BoM not found' });
+      return;
+    }
+
+    if (bom.status === 'ARCHIVED') {
+      res.status(400).json({ 
+        status: 'error', 
+        message: 'Cannot add components to archived BOMs' 
+      });
+      return;
+    }
+
+    // CRITICAL FIX: Prevent using archived products as components
+    const product = await prisma.product.findUnique({ 
+      where: { id: productId },
+      select: { status: true, name: true }
+    });
+
+    if (!product) {
+      res.status(404).json({ status: 'error', message: 'Product not found' });
+      return;
+    }
+
+    if (product.status === 'ARCHIVED') {
+      res.status(400).json({ 
+        status: 'error', 
+        message: `Cannot use archived product "${product.name}" as a component. Archived products cannot be used in active BOMs.` 
+      });
+      return;
+    }
 
     const component = await prisma.bOMComponent.create({
       data: {
@@ -159,6 +236,25 @@ export const addOperation = async (req: Request, res: Response): Promise<void> =
     const { id } = req.params;
     const { name, time, workCenter } = req.body;
 
+    // CRITICAL FIX: Check if BOM is archived
+    const bom = await prisma.bOM.findUnique({ 
+      where: { id },
+      select: { status: true }
+    });
+
+    if (!bom) {
+      res.status(404).json({ status: 'error', message: 'BoM not found' });
+      return;
+    }
+
+    if (bom.status === 'ARCHIVED') {
+      res.status(400).json({ 
+        status: 'error', 
+        message: 'Cannot add operations to archived BOMs' 
+      });
+      return;
+    }
+
     const lastOp = await prisma.bOMOperation.findFirst({
       where: { bomId: id },
       orderBy: { sequence: 'desc' },
@@ -181,5 +277,93 @@ export const addOperation = async (req: Request, res: Response): Promise<void> =
     });
   } catch (error: any) {
     res.status(500).json({ status: 'error', message: 'Failed to add operation' });
+  }
+};
+
+// CRITICAL FIX: Remove component from BOM with ARCHIVED protection
+export const removeComponent = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id, componentId } = req.params;
+
+    // Check if BOM exists and is not archived
+    const bom = await prisma.bOM.findUnique({ 
+      where: { id },
+      select: { status: true }
+    });
+
+    if (!bom) {
+      res.status(404).json({ status: 'error', message: 'BoM not found' });
+      return;
+    }
+
+    // CRITICAL: Prevent removal from ARCHIVED BOMs
+    if (bom.status === 'ARCHIVED') {
+      res.status(400).json({ 
+        status: 'error', 
+        message: 'Cannot remove components from archived BOMs. Use ECO workflow for changes.' 
+      });
+      return;
+    }
+
+    // Check if component exists
+    const component = await prisma.bOMComponent.findUnique({ where: { id: componentId } });
+    if (!component) {
+      res.status(404).json({ status: 'error', message: 'Component not found' });
+      return;
+    }
+
+    // Delete component
+    await prisma.bOMComponent.delete({ where: { id: componentId } });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Component removed successfully',
+    });
+  } catch (error: any) {
+    res.status(500).json({ status: 'error', message: 'Failed to remove component' });
+  }
+};
+
+// CRITICAL FIX: Remove operation from BOM with ARCHIVED protection
+export const removeOperation = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id, operationId } = req.params;
+
+    // Check if BOM exists and is not archived
+    const bom = await prisma.bOM.findUnique({ 
+      where: { id },
+      select: { status: true }
+    });
+
+    if (!bom) {
+      res.status(404).json({ status: 'error', message: 'BoM not found' });
+      return;
+    }
+
+    // CRITICAL: Prevent removal from ARCHIVED BOMs
+    if (bom.status === 'ARCHIVED') {
+      res.status(400).json({ 
+        status: 'error', 
+        message: 'Cannot remove operations from archived BOMs. Use ECO workflow for changes.' 
+      });
+      return;
+    }
+
+    // Check if operation exists
+    const operation = await prisma.bOMOperation.findUnique({ where: { id: operationId } });
+    if (!operation) {
+      res.status(404).json({ status: 'error', message: 'Operation not found' });
+      return;
+    }
+
+    // Delete operation
+    await prisma.bOMOperation.delete({ where: { id: operationId } });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Operation removed successfully',
+    });
+  } catch (error: any) {
+    res.status(500).json({ status: 'error', message: 'Failed to remove operation' });
   }
 };
