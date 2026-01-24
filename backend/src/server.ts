@@ -12,6 +12,7 @@ import roleRoutes from './routes/role.routes';
 import notificationRoutes from './routes/notification.routes';
 import comparisonRoutes from './routes/comparison.routes';
 import settingsRoutes from './routes/settings.routes';
+import operationsRoutes from './routes/operations.routes'; // CRITICAL FIX: Operations routes
 
 // Load environment variables
 dotenv.config();
@@ -57,6 +58,7 @@ app.use('/api/roles', roleRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/comparison', comparisonRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/operations', operationsRoutes); // CRITICAL FIX: Operations endpoints for OPERATIONS role
 
 // 404 Handler
 app.use((_req: Request, res: Response) => {
