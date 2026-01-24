@@ -46,24 +46,37 @@ export const CreateBOMModal = ({ isOpen, onClose, onSuccess }: CreateBOMModalPro
         }
 
         try {
-            // Find the product to get its ID or currentVersionId
-            // The API expects 'productVersionId', so we need the version ID, not just product ID.
-            // This is tricky if we don't know the version ID.
-            // For now, let's assume we pick a product, look up its currentVersionId.
             const product = products.find(p => p.id === selectedProduct);
             if (!product?.currentVersionId) {
-                throw new Error('Selected product has no current version');
+                setError('Selected product has no current version. Please create or activate a product version first.');
+                setLoading(false);
+                return;
             }
 
-            await bomsApi.create({
+            if (!version.trim()) {
+                setError('BOM version is required');
+                setLoading(false);
+                return;
+            }
+
+            const createdBOM = await bomsApi.create({
                 productVersionId: product.currentVersionId,
-                version: version, // This might be the BOM version?
-                status: 'DRAFT'
+                version: version,
+                status: 'DRAFT',
+                components: [],
+                operations: [],
             });
+
+            if (!createdBOM) {
+                throw new Error('Failed to create BOM');
+            }
+
             onSuccess();
             onClose();
+            setSelectedProduct('');
+            setVersion('v1.0');
         } catch (err: any) {
-            setError(err.message || 'Failed to create BOM');
+            setError(err.response?.data?.message || err.message || 'Failed to create BOM');
         } finally {
             setLoading(false);
         }

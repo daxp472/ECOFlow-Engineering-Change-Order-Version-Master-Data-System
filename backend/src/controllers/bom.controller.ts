@@ -134,7 +134,7 @@ export const updateBOM = async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
     const { version, status } = req.body;
 
-    // CRITICAL FIX: Prevent editing archived BOMs
+    // CRITICAL FIX: Prevent editing ACTIVE and ARCHIVED BOMs (must use ECO workflow)
     const existingBom = await prisma.bOM.findUnique({ 
       where: { id },
       select: { status: true, version: true }
@@ -142,6 +142,14 @@ export const updateBOM = async (req: Request, res: Response): Promise<void> => {
 
     if (!existingBom) {
       res.status(404).json({ status: 'error', message: 'BoM not found' });
+      return;
+    }
+
+    if (existingBom.status === 'ACTIVE') {
+      res.status(400).json({ 
+        status: 'error', 
+        message: 'Cannot directly edit ACTIVE BOMs. Use ECO workflow to modify active BOMs to maintain version history.' 
+      });
       return;
     }
 
@@ -153,6 +161,7 @@ export const updateBOM = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Only allow updates to DRAFT BOMs
     const bom = await prisma.bOM.update({
       where: { id },
       data: { version, status },

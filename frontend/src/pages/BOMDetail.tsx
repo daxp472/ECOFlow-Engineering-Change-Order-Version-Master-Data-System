@@ -26,9 +26,10 @@ export const BOMDetail = () => {
         setLoading(true);
         try {
             const data = await bomsApi.getById(bomId);
-            setBom(data);
+            setBom(data || null);
         } catch (error) {
             console.error('Failed to load BOM', error);
+            setBom(null);
         } finally {
             setLoading(false);
         }

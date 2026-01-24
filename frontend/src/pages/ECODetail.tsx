@@ -28,9 +28,10 @@ export const ECODetail = () => {
         setLoading(true);
         try {
             const data = await ecosApi.getById(ecoId);
-            setEco(data);
+            setEco(data || null);
         } catch (error) {
             console.error('Failed to load ECO', error);
+            setEco(null);
         } finally {
             setLoading(false);
         }

@@ -1,15 +1,19 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { reportsApi } from '../api/reports.api';
+import { useAuth } from '../context/AuthContext';
 import { FileText, Archive, Activity, Download, List, LayoutGrid } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export const ReportsPage = () => {
+    const { user } = useAuth();
     const [activeTab, setActiveTab] = useState('matrix');
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<any>(null);
+
+    const isAdmin = user?.roles?.includes('ADMIN');
 
     // Fetch data based on active tab
     useEffect(() => {
@@ -135,12 +139,14 @@ export const ReportsPage = () => {
                     icon={<LayoutGrid className="w-4 h-4" />}
                     label="Active Product Matrix"
                 />
-                <TabButton
-                    active={activeTab === 'audit'}
-                    onClick={() => setActiveTab('audit')}
-                    icon={<List className="w-4 h-4" />}
-                    label="Audit Logs"
-                />
+                {isAdmin && (
+                    <TabButton
+                        active={activeTab === 'audit'}
+                        onClick={() => setActiveTab('audit')}
+                        icon={<List className="w-4 h-4" />}
+                        label="Audit Logs"
+                    />
+                )}
                 <TabButton
                     active={activeTab === 'archives'}
                     onClick={() => setActiveTab('archives')}

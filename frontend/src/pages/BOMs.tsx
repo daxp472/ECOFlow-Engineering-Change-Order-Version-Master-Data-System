@@ -30,9 +30,10 @@ export const BOMPage = () => {
             } else {
                 data = await bomsApi.getAll();
             }
-            setBoms(data);
+            setBoms(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Failed to load BOMs', error);
+            setBoms([]);
         } finally {
             setLoading(false);
         }

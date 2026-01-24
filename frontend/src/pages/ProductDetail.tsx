@@ -29,18 +29,22 @@ export const ProductDetail = () => {
         try {
             // Fetch product details
             const productData = await productsApi.getById(productId);
-            setProduct(productData);
+            setProduct(productData || null);
 
             // Assume getById returns versions in a property or we fetch them separately
             // Based on checking the controller, getProductById returns { product: { versions: [...] } }
             // But our api wrapper unwrap it to response.data.data.product
             // Let's assume the API returns the product with versions included as per controller logic.
-            if ((productData as any).versions) {
-                setVersions((productData as any).versions);
+            if (productData && (productData as any).versions) {
+                setVersions(Array.isArray((productData as any).versions) ? (productData as any).versions : []);
+            } else {
+                setVersions([]);
             }
 
         } catch (error) {
             console.error('Failed to load product', error);
+            setProduct(null);
+            setVersions([]);
         } finally {
             setLoading(false);
         }

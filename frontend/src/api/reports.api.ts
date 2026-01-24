@@ -20,19 +20,39 @@ export interface AuditLog {
 
 export const reportsApi = {
     getECOStats: async () => {
-        const response = await api.get<any>('/reports/eco-stats');
-        return response.data.data;
+        try {
+            const response = await api.get<any>('/reports/eco-stats');
+            return response.data.data || null;
+        } catch (error) {
+            console.error('Failed to fetch ECO stats:', error);
+            return null;
+        }
     },
     getAuditLogs: async () => {
-        const response = await api.get<any>('/reports/audit-logs');
-        return response.data.data?.logs || [];
+        try {
+            const response = await api.get<any>('/reports/audit-logs');
+            return response.data.data?.logs || [];
+        } catch (error) {
+            console.error('Failed to fetch audit logs:', error);
+            return [];
+        }
     },
     getArchivedProducts: async () => {
-        const response = await api.get<any>('/reports/archived-products');
-        return response.data.data?.products || [];
+        try {
+            const response = await api.get<any>('/reports/archived-products');
+            return response.data.data?.products || [];
+        } catch (error) {
+            console.error('Failed to fetch archived products:', error);
+            return [];
+        }
     },
     getActiveProductMatrix: async () => {
-        const response = await api.get<any>('/reports/active-matrix');
-        return response.data.data;
+        try {
+            const response = await api.get<any>('/reports/active-matrix');
+            return response.data.data || null;
+        } catch (error) {
+            console.error('Failed to fetch active matrix:', error);
+            return null;
+        }
     }
 };

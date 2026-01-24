@@ -23,9 +23,10 @@ export const ECOPage = () => {
         setLoading(true);
         try {
             const data = await ecosApi.getAll();
-            setEcos(data);
+            setEcos(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Failed to load ECOs', error);
+            setEcos([]);
         } finally {
             setLoading(false);
         }

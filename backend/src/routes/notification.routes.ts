@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../middlewares/auth.middleware';
+import { authenticate, authorize } from '../middlewares/auth.middleware';
 import {
   streamEvents,
   broadcastNotificationHandler,
@@ -18,9 +18,9 @@ router.use(authenticate);
 // SSE stream endpoint
 router.get('/stream', streamEvents);
 
-// Send notifications
-router.post('/broadcast', broadcastNotificationHandler);
-router.post('/users/:userId', sendNotificationToUserHandler);
+// Send notifications (ADMIN only)
+router.post('/broadcast', authorize('ADMIN'), broadcastNotificationHandler);
+router.post('/users/:userId', authorize('ADMIN'), sendNotificationToUserHandler);
 
 // Notification management
 router.get('/', getNotifications);
