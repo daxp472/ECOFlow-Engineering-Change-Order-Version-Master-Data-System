@@ -25,11 +25,11 @@ export const reportsApi = {
     },
     getAuditLogs: async () => {
         const response = await api.get<any>('/reports/audit-logs');
-        return response.data.data.logs; // Extract logs array
+        return response.data.data?.logs || [];
     },
     getArchivedProducts: async () => {
         const response = await api.get<any>('/reports/archived-products');
-        return response.data.data.products;
+        return response.data.data?.products || [];
     },
     getActiveProductMatrix: async () => {
         const response = await api.get<any>('/reports/active-matrix');

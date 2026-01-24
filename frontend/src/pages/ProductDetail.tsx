@@ -49,15 +49,12 @@ export const ProductDetail = () => {
     const handleArchive = async () => {
         if (!product || !confirm('Are you sure you want to archive this product? This action cannot be undone easily.')) return;
         try {
-            // Assuming we have an archive endpoint in our api client. 
-            // If not, we might need to add it or use a generic update.
-            // Checking products.api.ts... verify if archive exists.
-            // If not, I will add it. For now, let's assume standard update to status 'ARCHIVED' works or add specific call.
-            // Actually, `archiveProduct` is in controller but maybe not in API client yet.
-            // I'll check and fix if needed.
-            console.log('Archiving product...');
+            await productsApi.archive(product.id);
+            alert('Product archived successfully');
+            navigate('/products');
         } catch (error) {
             console.error('Failed to archive product', error);
+            alert('Failed to archive product');
         }
     };
 

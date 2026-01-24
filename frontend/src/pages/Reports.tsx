@@ -24,9 +24,10 @@ export const ReportsPage = () => {
                 } else if (activeTab === 'archives') {
                     result = await reportsApi.getArchivedProducts();
                 }
-                setData(result);
+                setData(result || []);
             } catch (error) {
                 console.error("Failed to load report data", error);
+                setData(activeTab === 'archives' ? [] : null);
             } finally {
                 setLoading(false);
             }
@@ -159,9 +160,9 @@ export const ReportsPage = () => {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.3 }}
                     >
-                        {activeTab === 'matrix' && data && <MatrixView data={data} />}
-                        {activeTab === 'audit' && data && <AuditView logs={data} />}
-                        {activeTab === 'archives' && data && <ArchivesView products={data} />}
+                        {activeTab === 'matrix' && data !== null && <MatrixView data={data} />}
+                        {activeTab === 'audit' && data !== null && <AuditView logs={data} />}
+                        {activeTab === 'archives' && data !== null && <ArchivesView products={data} />}
                     </motion.div>
                 )}
             </div>
@@ -318,9 +319,11 @@ const AuditView = ({ logs = [] }: any) => {
 };
 
 const ArchivesView = ({ products }: any) => {
+    const productList = Array.isArray(products) ? products : [];
+    
     return (
         <div className="glass-card rounded-xl border border-white/5 overflow-hidden">
-            {products.length === 0 ? (
+            {productList.length === 0 ? (
                 <div className="p-12 text-center">
                     <Archive className="w-12 h-12 text-zinc-600 mx-auto mb-4" />
                     <h3 className="text-zinc-400 font-medium">No Archived Products</h3>
@@ -337,7 +340,7 @@ const ArchivesView = ({ products }: any) => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
-                        {products.map((product: any) => (
+                        {productList.map((product: any) => (
                             <tr key={product.id} className="hover:bg-white/5 transition-colors">
                                 <td className="px-6 py-4 text-zinc-400">{product.name}</td>
                                 <td className="px-6 py-4 text-zinc-500">
