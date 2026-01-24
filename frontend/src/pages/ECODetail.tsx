@@ -17,6 +17,7 @@ export const ECODetail = () => {
 
     const isEngineering = user?.roles?.includes('ENGINEERING') || user?.roles?.includes('ADMIN');
     const isApprover = user?.roles?.includes('APPROVER') || user?.roles?.includes('ADMIN');
+    const isAdmin = user?.roles?.includes('ADMIN');
 
     useEffect(() => {
         if (id) {
@@ -41,9 +42,12 @@ export const ECODetail = () => {
         if (!eco) return;
         try {
             await ecosApi.submit(eco.id);
+            alert('✅ ECO submitted for approval!');
             loadECO(eco.id);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to submit ECO', error);
+            const errorMsg = error?.response?.data?.message || 'Failed to submit ECO';
+            alert('❌ ' + errorMsg);
         }
     };
 
@@ -62,7 +66,8 @@ export const ECODetail = () => {
     if (!eco) return <div className="text-zinc-500">ECO not found</div>;
 
     const canSubmit = isEngineering && eco.status === 'DRAFT';
-    const canReview = isApprover && eco.status === 'IN_PROGRESS'; // Simplified, ideally check current stage
+    const canReview = isApprover && eco.status === 'IN_PROGRESS';
+    const canApprove = isAdmin && eco.status === 'IN_PROGRESS';
 
     return (
         <div className="space-y-6">
@@ -152,6 +157,32 @@ export const ECODetail = () => {
                                         <XCircle className="w-4 h-4 mr-2" /> Reject
                                     </Button>
                                 </div>
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {canApprove && !canReview && (
+                        <motion.div
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="glass-card p-6 rounded-xl border border-white/5 bg-emerald-500/5"
+                        >
+                            <h3 className="text-lg font-semibold text-white mb-4">🔑 Admin Direct Approval</h3>
+                            <p className="text-sm text-zinc-400 mb-4">As ADMIN, you can directly approve this ECO</p>
+                            <div className="flex gap-3">
+                                <Button
+                                    onClick={() => handleReview('APPROVED')}
+                                    className="bg-emerald-600 hover:bg-emerald-700 flex-1"
+                                >
+                                    <CheckCircle className="w-4 h-4 mr-2" /> Approve ECO
+                                </Button>
+                                <Button
+                                    onClick={() => handleReview('REJECTED')}
+                                    variant="outline"
+                                    className="border-rose-500/50 text-rose-500 hover:bg-rose-500/10"
+                                >
+                                    <XCircle className="w-4 h-4" />
+                                </Button>
                             </div>
                         </motion.div>
                     )}
