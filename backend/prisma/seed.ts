@@ -32,7 +32,7 @@ async function main() {
       email: 'admin@ecoflow.com',
       password: hashedPassword,
       name: 'Admin User',
-      role: UserRole.ADMIN,
+      roles: [UserRole.ADMIN, UserRole.APPROVER, UserRole.ENGINEERING], // Admin has all roles
       status: UserStatus.ACTIVE,
     },
   });
@@ -42,7 +42,7 @@ async function main() {
       email: 'engineer@ecoflow.com',
       password: hashedPassword,
       name: 'Engineering User',
-      role: UserRole.ENGINEERING,
+      roles: [UserRole.ENGINEERING, UserRole.APPROVER], // Engineer can also approve
       status: UserStatus.ACTIVE,
     },
   });
@@ -52,7 +52,7 @@ async function main() {
       email: 'approver@ecoflow.com',
       password: hashedPassword,
       name: 'Approver User',
-      role: UserRole.APPROVER,
+      roles: [UserRole.APPROVER],
       status: UserStatus.ACTIVE,
     },
   });
@@ -62,7 +62,7 @@ async function main() {
       email: 'operations@ecoflow.com',
       password: hashedPassword,
       name: 'Operations User',
-      role: UserRole.OPERATIONS,
+      roles: [UserRole.OPERATIONS],
       status: UserStatus.ACTIVE,
     },
   });
