@@ -34,20 +34,20 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Create user
+    // Create user with single role
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
         name,
-        role: role as UserRole,
+        roles: [role as UserRole], // Array of roles
         status: UserStatus.ACTIVE,
       },
       select: {
         id: true,
         email: true,
         name: true,
-        role: true,
+        roles: true,
         status: true,
         createdAt: true,
       },
@@ -57,13 +57,15 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: user.roles[0], // Primary role
+      roles: user.roles, // All roles
     });
 
     const refreshToken = generateRefreshToken({
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: user.roles[0],
+      roles: user.roles,
     });
 
     // Store refresh token
@@ -147,13 +149,15 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: user.roles[0], // Primary role
+      roles: user.roles, // All roles
     });
 
     const refreshToken = generateRefreshToken({
       userId: user.id,
       email: user.email,
-      role: user.role,
+      role: user.roles[0],
+      roles: user.roles,
     });
 
     // Store refresh token
@@ -176,7 +180,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role,
+          roles: user.roles,
           status: user.status,
         },
         accessToken,
@@ -211,36 +215,62 @@ export const refreshAccessToken = async (req: Request, res: Response): Promise<v
     // Check if refresh token exists in database
     const storedToken = await prisma.refreshToken.findUnique({
       where: { token: refreshToken },
-      include: { user: true },
     });
 
-    if (!storedToken || storedToken.expiresAt < new Date()) {
+    if (!storedToken) {
       res.status(401).json({
         status: 'error',
-        message: 'Invalid or expired refresh token',
+        message: 'Invalid refresh token',
+      });
+      return;
+    }
+
+    // Check if token is expired
+    if (new Date() > storedToken.expiresAt) {
+      await prisma.refreshToken.delete({
+        where: { id: storedToken.id },
+      });
+
+      res.status(401).json({
+        status: 'error',
+        message: 'Refresh token expired',
+      });
+      return;
+    }
+
+    // Get user
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
+
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      res.status(401).json({
+        status: 'error',
+        message: 'User not found or inactive',
       });
       return;
     }
 
     // Generate new access token
-    const accessToken = generateAccessToken({
-      userId: decoded.userId,
-      email: decoded.email,
-      role: decoded.role,
+    const newAccessToken = generateAccessToken({
+      userId: user.id,
+      email: user.email,
+      role: user.roles[0],
+      roles: user.roles,
     });
 
     res.status(200).json({
       status: 'success',
       message: 'Token refreshed successfully',
       data: {
-        accessToken,
+        accessToken: newAccessToken,
       },
     });
   } catch (error) {
     console.error('Refresh token error:', error);
     res.status(401).json({
       status: 'error',
-      message: 'Invalid refresh token',
+      message: 'Invalid or expired refresh token',
     });
   }
 };
@@ -278,7 +308,7 @@ export const me = async (req: any, res: Response): Promise<void> => {
     if (!userId) {
       res.status(401).json({
         status: 'error',
-        message: 'Authentication required',
+        message: 'Not authenticated',
       });
       return;
     }
@@ -289,7 +319,7 @@ export const me = async (req: any, res: Response): Promise<void> => {
         id: true,
         email: true,
         name: true,
-        role: true,
+        roles: true,
         status: true,
         createdAt: true,
         updatedAt: true,
@@ -306,7 +336,8 @@ export const me = async (req: any, res: Response): Promise<void> => {
 
     res.status(200).json({
       status: 'success',
-      data: { user },
+      message: 'User retrieved successfully',
+      data: user,
     });
   } catch (error) {
     console.error('Get user error:', error);

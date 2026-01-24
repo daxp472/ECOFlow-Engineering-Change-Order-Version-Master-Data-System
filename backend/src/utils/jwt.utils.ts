@@ -4,7 +4,8 @@ import { UserRole } from '@prisma/client';
 export interface JWTPayload {
   userId: string;
   email: string;
-  role: UserRole;
+  role: UserRole; // Primary role (backward compatibility)
+  roles: UserRole[]; // All roles
 }
 
 export const generateAccessToken = (payload: JWTPayload): string => {
