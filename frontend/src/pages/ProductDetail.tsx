@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { productsApi } from '../api/products.api';
 import type { Product, ProductVersion } from '../api/products.api';
 import { Button } from '../components/ui/Button';
+import { AttachmentSection } from '../components/ui/AttachmentSection';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, Package, Archive, Layers, Plus } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -156,6 +157,17 @@ export const ProductDetail = () => {
                         </table>
                     </div>
                 </motion.div>
+
+                {/* Attachments Section - Only show for current version */}
+                {product.currentVersion && (
+                    <AttachmentSection
+                        entityType="product"
+                        entityId={product.currentVersion.id}
+                        entityStatus={product.currentVersion.status}
+                        canUpload={isEngineering}
+                        canDelete={isEngineering}
+                    />
+                )}
             </div>
         </div>
     );

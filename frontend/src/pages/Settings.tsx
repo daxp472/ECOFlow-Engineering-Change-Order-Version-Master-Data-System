@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../api/auth.api';
 import { useNotifications } from '../context/NotificationContext';
@@ -7,7 +7,7 @@ import { Lock, User, Save, RefreshCw, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const SettingsPage = () => {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
     const { addNotification } = useNotifications();
     const [loading, setLoading] = useState(false);
 
@@ -16,6 +16,17 @@ export const SettingsPage = () => {
     const [email, setEmail] = useState(user?.email || '');
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(user?.avatar || null);
+
+    // Sync with user context changes
+    useEffect(() => {
+        if (user) {
+            setName(user.name);
+            setEmail(user.email);
+            if (!avatarFile) {
+                setPreviewUrl(user.avatar || null);
+            }
+        }
+    }, [user, avatarFile]);
 
     // Password State
     const [currentPassword, setCurrentPassword] = useState('');
@@ -34,9 +45,14 @@ export const SettingsPage = () => {
         e.preventDefault();
         setLoading(true);
         try {
-            await authApi.updateProfile({ name, email, avatar: avatarFile });
-            addNotification('success', 'Profile updated successfully. Refreshing...');
-            setTimeout(() => window.location.reload(), 1000); // Reload to update context
+            const response = await authApi.updateProfile({ name, email, avatar: avatarFile });
+            if (response.data?.user) {
+                // Update context with new user data including avatar
+                updateUser(response.data.user);
+                setAvatarFile(null);
+                setPreviewUrl(response.data.user.avatar || null);
+                addNotification('success', 'Profile updated successfully');
+            }
         } catch (error: any) {
             addNotification('error', error.message || 'Failed to update profile');
         } finally {

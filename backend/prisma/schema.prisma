@@ -28,21 +28,24 @@ enum UserStatus {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  password  String
-  name      String
-  avatar    String?    // URL to Cloudinary image
-  roles     UserRole[] // Multiple roles per user
-  status    UserStatus @default(ACTIVE)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id             String     @id @default(cuid())
+  email          String     @unique
+  password       String
+  name           String
+  avatar         String?    // URL to Cloudinary image
+  avatarPublicId String?    // Cloudinary public_id for deletion
+  roles          UserRole[] // Multiple roles per user
+  status         UserStatus @default(ACTIVE)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   // Relations
-  createdECOs     ECO[]           @relation("CreatedBy")
-  approvals       ECOApproval[]
-  auditLogs       AuditLog[]
-  refreshTokens   RefreshToken[]
+  createdECOs        ECO[]                @relation("CreatedBy")
+  approvals          ECOApproval[]
+  auditLogs          AuditLog[]
+  refreshTokens      RefreshToken[]
+  productAttachments ProductAttachment[]
+  ecoAttachments     ECOAttachment[]
 
   @@map("users")
 }
@@ -92,18 +95,38 @@ model ProductVersion {
   version     String // e.g., "v1.0", "v2.0"
   salePrice   Float
   costPrice   Float
-  attachments Json?         @default("[]") // Array of file URLs
+  attachments Json?         @default("[]") // Legacy: Array of file URLs (kept for backward compatibility)
   status      ProductStatus @default(DRAFT)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
   // Relations
-  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  currentForProduct  Product? @relation("CurrentVersion")
-  boms               BOM[]
+  product              Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  currentForProduct    Product?             @relation("CurrentVersion")
+  boms                 BOM[]
+  productAttachments   ProductAttachment[]
 
   @@unique([productId, version])
   @@map("product_versions")
+}
+
+model ProductAttachment {
+  id               String         @id @default(cuid())
+  productVersionId String
+  url              String
+  publicId         String         // Cloudinary public_id for deletion
+  fileName         String
+  fileType         String         // MIME type
+  fileSize         Int?           // Size in bytes
+  uploadedBy       String
+  createdAt        DateTime       @default(now())
+
+  // Relations
+  productVersion ProductVersion @relation(fields: [productVersionId], references: [id], onDelete: Cascade)
+  uploader       User           @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+
+  @@index([productVersionId])
+  @@map("product_attachments")
 }
 
 // ========================================
@@ -198,13 +221,33 @@ model ECO {
   updatedAt     DateTime   @updatedAt
 
   // Relations
-  product   Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
-  bom       BOM?          @relation(fields: [bomId], references: [id], onDelete: Restrict)
-  creator   User          @relation("CreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
-  approvals ECOApproval[]
-  auditLogs AuditLog[]
+  product     Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+  bom         BOM?             @relation(fields: [bomId], references: [id], onDelete: Restrict)
+  creator     User             @relation("CreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  approvals   ECOApproval[]
+  auditLogs   AuditLog[]
+  attachments ECOAttachment[]
 
   @@map("ecos")
+}
+
+model ECOAttachment {
+  id         String   @id @default(cuid())
+  ecoId      String
+  url        String
+  publicId   String   // Cloudinary public_id for deletion
+  fileName   String
+  fileType   String   // MIME type
+  fileSize   Int?     // Size in bytes
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  eco      ECO  @relation(fields: [ecoId], references: [id], onDelete: Cascade)
+  uploader User @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+
+  @@index([ecoId])
+  @@map("eco_attachments")
 }
 
 // ========================================

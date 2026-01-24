@@ -33,6 +33,7 @@ export const getAllUsers = async (req: Request, res: Response): Promise<void> =>
           id: true,
           email: true,
           name: true,
+          avatar: true,
           roles: true,
           status: true,
           createdAt: true,

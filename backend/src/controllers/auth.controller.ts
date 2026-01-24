@@ -212,6 +212,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           name: user.name,
           roles: user.roles,
           status: user.status,
+          avatar: user.avatar,
         },
         accessToken,
         refreshToken,
@@ -468,9 +469,16 @@ export const updateProfile = async (req: any, res: Response): Promise<void> => {
     }
 
     let avatarUrl = undefined;
+    let avatarPublicId = undefined;
+    
     if (file) {
+      // Get current user to delete old avatar
+      const currentUser = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { avatarPublicId: true },
+      });
+
       // Upload to Cloudinary
-      // Convert buffer to base64
       const b64 = Buffer.from(file.buffer).toString('base64');
       const dataURI = 'data:' + file.mimetype + ';base64,' + b64;
 
@@ -481,6 +489,14 @@ export const updateProfile = async (req: any, res: Response): Promise<void> => {
         });
 
         avatarUrl = uploadResponse.secure_url;
+        avatarPublicId = uploadResponse.public_id;
+
+        // Delete old avatar if exists
+        if (currentUser?.avatarPublicId) {
+          await cloudinary.uploader.destroy(currentUser.avatarPublicId).catch(() => {
+            // Ignore deletion errors
+          });
+        }
       } catch (uploadError) {
         console.error('Cloudinary upload failed:', uploadError);
         throw new Error('Image upload failed');
@@ -492,7 +508,8 @@ export const updateProfile = async (req: any, res: Response): Promise<void> => {
       data: {
         name,
         email,
-        ...(avatarUrl && { avatar: avatarUrl })
+        ...(avatarUrl && { avatar: avatarUrl }),
+        ...(avatarPublicId && { avatarPublicId: avatarPublicId })
       },
       select: {
         id: true,

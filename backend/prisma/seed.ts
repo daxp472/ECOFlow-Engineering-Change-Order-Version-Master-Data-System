@@ -366,7 +366,7 @@ async function main() {
           version: 'v0.1',
           salePrice: 0,
           costPrice: 0,
-          status: ProductStatus.DRAFT,
+          status: ProductStatus.ARCHIVED,
           attachments: JSON.stringify([]),
         },
       },

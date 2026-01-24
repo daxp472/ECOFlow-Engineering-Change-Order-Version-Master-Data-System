@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ecosApi } from '../api/ecos.api';
 import type { ECO } from '../api/ecos.api';
 import { Button } from '../components/ui/Button';
+import { AttachmentSection } from '../components/ui/AttachmentSection';
 import { useAuth } from '../context/AuthContext';
 import { ArrowLeft, CheckCircle, XCircle, Clock, FileText, Send } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -224,6 +225,15 @@ export const ECODetail = () => {
                             )}
                         </div>
                     </motion.div>
+
+                    {/* ECO Attachments */}
+                    <AttachmentSection
+                        entityType="eco"
+                        entityId={eco.id}
+                        entityStatus={eco.status}
+                        canUpload={isEngineering || false}
+                        canDelete={isEngineering || false}
+                    />
 
                     {/* Approval History */}
                     {/* Note: Assuming 'approvals' is populated in the ECO response.

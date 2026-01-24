@@ -7,6 +7,8 @@ export interface Product {
     currentVersionId?: string;
     createdAt: string;
     updatedAt: string;
+    currentVersion?: ProductVersion;
+    versions?: ProductVersion[];
 }
 
 export interface ProductVersion {
