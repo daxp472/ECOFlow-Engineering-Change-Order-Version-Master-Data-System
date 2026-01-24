@@ -19,7 +19,7 @@ enum UserRole {
   APPROVER
   OPERATIONS
   ADMIN
-}
+} 
 
 enum UserStatus {
   ACTIVE
