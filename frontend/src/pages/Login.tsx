@@ -103,6 +103,7 @@ export const LoginPage = () => {
                             leftIcon={<Mail className="w-4 h-4" />}
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
+                            autoComplete="email"
                             required
                         />
                         <div className="space-y-1">
@@ -113,6 +114,7 @@ export const LoginPage = () => {
                                 leftIcon={<Lock className="w-4 h-4" />}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
+                                autoComplete="current-password"
                                 required
                             />
                             <div className="flex justify-end">

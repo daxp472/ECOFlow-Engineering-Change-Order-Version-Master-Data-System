@@ -94,6 +94,7 @@ export const Signup = () => {
                                             onChange={e => setFormData({ ...formData, name: e.target.value })}
                                             className="w-full bg-zinc-900/50 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all"
                                             placeholder="John Doe"
+                                            autoComplete="name"
                                             required
                                         />
                                     </div>
@@ -109,6 +110,7 @@ export const Signup = () => {
                                             onChange={e => setFormData({ ...formData, email: e.target.value })}
                                             className="w-full bg-zinc-900/50 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all"
                                             placeholder="name@company.com"
+                                            autoComplete="email"
                                             required
                                         />
                                     </div>
@@ -124,6 +126,7 @@ export const Signup = () => {
                                             onChange={e => setFormData({ ...formData, password: e.target.value })}
                                             className="w-full bg-zinc-900/50 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all"
                                             placeholder="••••••••"
+                                            autoComplete="new-password"
                                             required
                                             minLength={6}
                                         />
