@@ -239,7 +239,7 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
 // Create ECO
 export const createECO = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { title, type, productId, bomId, draftData } = req.body;
+    const { title, type, productId, bomId, draftData, effectiveDate, versionUpdate } = req.body;
     const userId = (req as any).user.userId;
 
     if (!title || !type || !productId) {
@@ -297,6 +297,8 @@ export const createECO = async (req: Request, res: Response): Promise<void> => {
         createdBy: userId,
         currentStage: 'New',
         draftData: draftData || {},
+        effectiveDate: effectiveDate ? new Date(effectiveDate) : null,
+        versionUpdate: versionUpdate !== undefined ? versionUpdate : true,
       },
       include: {
         product: true,

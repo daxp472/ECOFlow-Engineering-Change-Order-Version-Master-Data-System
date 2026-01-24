@@ -78,7 +78,9 @@ export const BOMPage = () => {
                                     <Layers className="w-5 h-5" />
                                 </div>
                                 <div>
-                                    <h3 className="font-medium text-white">{bom.version}</h3>
+                                    <h3 className="font-medium text-white">
+                                        {bom.productVersion?.product?.name || 'Unknown Product'} - {bom.version}
+                                    </h3>
                                     <p className="text-sm text-zinc-500">
                                         {bom._count?.components ?? bom.components?.length ?? 0} components • {bom._count?.operations ?? bom.operations?.length ?? 0} operations
                                     </p>

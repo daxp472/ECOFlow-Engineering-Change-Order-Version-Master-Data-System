@@ -10,9 +10,20 @@ export interface ECO {
     status: 'DRAFT' | 'IN_PROGRESS' | 'APPROVED' | 'REJECTED' | 'APPLIED';
     currentStage: string;
     versionUpdate: boolean;
+    effectiveDate?: string;
     draftData: any;
     createdAt: string;
     updatedAt: string;
+    product?: {
+        id: string;
+        name: string;
+        status: string;
+    };
+    bom?: {
+        id: string;
+        version: string;
+        status: string;
+    };
 }
 
 export const ecosApi = {
@@ -47,7 +58,10 @@ export const ecosApi = {
         return response.data.data?.eco;
     },
     review: async (id: string, status: 'APPROVED' | 'REJECTED', comments: string) => {
-        const response = await api.post<any>(`/ecos/${id}/review`, { status, comments });
+        const response = await api.post<any>(`/ecos/${id}/review`, { 
+            approved: status === 'APPROVED', 
+            comments 
+        });
         return response.data.data;
     },
     apply: async (id: string) => {

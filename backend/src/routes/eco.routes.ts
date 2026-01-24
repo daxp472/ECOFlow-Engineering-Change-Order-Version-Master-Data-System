@@ -15,8 +15,8 @@ const router = express.Router();
 router.use(authenticate);
 
 router.post('/', authorize('ENGINEERING', 'ADMIN'), createECO);
-router.get('/', getAllECOs);
-router.get('/:id', getECOById);
+router.get('/', authorize('ENGINEERING', 'APPROVER', 'ADMIN'), getAllECOs);
+router.get('/:id', authorize('ENGINEERING', 'APPROVER', 'ADMIN'), getECOById);
 router.put('/:id', authorize('ENGINEERING', 'ADMIN'), updateECO);
 router.post('/:id/submit', authorize('ENGINEERING', 'ADMIN'), submitECO);
 router.post('/:id/review', authorize('APPROVER', 'ADMIN'), reviewECO);

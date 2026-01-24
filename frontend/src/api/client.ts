@@ -22,7 +22,7 @@ api.interceptors.request.use(
     }
 );
 
-// Response interceptor to handle errors (e.g., 401 Unauthorized)
+// Response interceptor to handle errors (e.g., 401 Unauthorized, 403 Forbidden)
 api.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -31,6 +31,10 @@ api.interceptors.response.use(
             localStorage.removeItem('token');
             localStorage.removeItem('user');
             window.location.href = '/login';
+        }
+        if (error.response?.status === 403) {
+            // Permission denied - log and show user-friendly message
+            console.warn('Access denied:', error.response?.data?.message);
         }
         return Promise.reject(error.response?.data || error.message);
     }

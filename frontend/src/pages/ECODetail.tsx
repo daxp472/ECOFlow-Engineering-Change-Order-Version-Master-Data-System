@@ -88,7 +88,13 @@ export const ECODetail = () => {
                         </span>
                     </div>
                     <p className="text-zinc-400">
+                        Product: <span className="text-zinc-300">{eco.product?.name || 'N/A'}</span> •
                         Type: <span className="text-zinc-300">{eco.type}</span> •
+                        {eco.type === 'BOM' && eco.bom && (
+                            <>
+                                BOM Version: <span className="text-zinc-300">{eco.bom.version}</span> •
+                            </>
+                        )}
                         Stage: <span className="text-zinc-300">{eco.currentStage}</span> •
                         Created: {new Date(eco.createdAt).toLocaleDateString()}
                     </p>
@@ -116,8 +122,106 @@ export const ECODetail = () => {
                             Change Details
                         </h2>
 
-                        <div className="bg-zinc-900/50 rounded-lg p-4 font-mono text-sm text-zinc-300 overflow-auto max-h-96">
-                            <pre>{JSON.stringify(eco.draftData || {}, null, 2)}</pre>
+                        <div className="space-y-4">
+                            {/* Description */}
+                            {eco.draftData?.description && (
+                                <div className="bg-zinc-900/50 rounded-lg p-4 border border-zinc-800">
+                                    <label className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Description</label>
+                                    <p className="text-zinc-200 mt-1">{eco.draftData.description}</p>
+                                </div>
+                            )}
+
+                            {/* Product Changes */}
+                            {eco.draftData?.product && (Object.keys(eco.draftData.product).length > 0) && (
+                                <div className="bg-zinc-900/50 rounded-lg p-4 border border-zinc-800">
+                                    <label className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-3 block">Product Price Changes</label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {eco.draftData.product.salePrice !== undefined && (
+                                            <div className="bg-zinc-800/50 rounded-lg p-3">
+                                                <span className="text-xs text-zinc-500">New Sale Price</span>
+                                                <p className="text-lg font-semibold text-emerald-400">
+                                                    ${eco.draftData.product.salePrice.toLocaleString()}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {eco.draftData.product.costPrice !== undefined && (
+                                            <div className="bg-zinc-800/50 rounded-lg p-3">
+                                                <span className="text-xs text-zinc-500">New Cost Price</span>
+                                                <p className="text-lg font-semibold text-amber-400">
+                                                    ${eco.draftData.product.costPrice.toLocaleString()}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* BOM Changes */}
+                            {eco.draftData?.bom && (
+                                <div className="bg-zinc-900/50 rounded-lg p-4 border border-zinc-800">
+                                    <label className="text-xs font-medium text-zinc-500 uppercase tracking-wide mb-3 block">BOM Changes</label>
+                                    
+                                    {/* Components */}
+                                    {eco.draftData.bom.components?.length > 0 && (
+                                        <div className="mb-4">
+                                            <h4 className="text-sm font-medium text-zinc-400 mb-2">📦 Components</h4>
+                                            <div className="space-y-2">
+                                                {eco.draftData.bom.components.map((comp: any, i: number) => (
+                                                    <div key={i} className="flex justify-between items-center bg-zinc-800/50 rounded-lg p-3">
+                                                        <div>
+                                                            <span className="text-zinc-200 font-medium">{comp.name || comp.productId || `Component ${i+1}`}</span>
+                                                            {comp.productId && <span className="text-xs text-zinc-500 ml-2">ID: {comp.productId}</span>}
+                                                        </div>
+                                                        <span className="text-amber-400 font-semibold">Qty: {comp.quantity || 0}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Operations */}
+                                    {eco.draftData.bom.operations?.length > 0 && (
+                                        <div>
+                                            <h4 className="text-sm font-medium text-zinc-400 mb-2">⚙️ Operations</h4>
+                                            <div className="space-y-2">
+                                                {eco.draftData.bom.operations.map((op: any, i: number) => (
+                                                    <div key={i} className="bg-zinc-800/50 rounded-lg p-3">
+                                                        <div className="flex justify-between items-start">
+                                                            <div className="flex-1">
+                                                                <span className="text-zinc-200 font-medium">{op.name || `Operation ${i+1}`}</span>
+                                                                {op.workCenter && (
+                                                                    <p className="text-xs text-zinc-500 mt-1">Work Center: {op.workCenter}</p>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-right">
+                                                                {op.time !== undefined && (
+                                                                    <span className="text-blue-400 font-semibold">{op.time} min</span>
+                                                                )}
+                                                                {op.sequence !== undefined && (
+                                                                    <p className="text-xs text-zinc-500 mt-1">Seq: {op.sequence}</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Empty State */}
+                                    {(!eco.draftData.bom.components || eco.draftData.bom.components.length === 0) &&
+                                     (!eco.draftData.bom.operations || eco.draftData.bom.operations.length === 0) && (
+                                        <p className="text-zinc-500 text-sm">No component or operation changes specified</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Empty State */}
+                            {(!eco.draftData || Object.keys(eco.draftData).length === 0) && (
+                                <div className="bg-zinc-900/50 rounded-lg p-6 border border-zinc-800 text-center">
+                                    <p className="text-zinc-500">No change details specified</p>
+                                </div>
+                            )}
                         </div>
                     </motion.div>
 

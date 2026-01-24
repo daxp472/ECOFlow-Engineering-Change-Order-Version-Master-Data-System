@@ -30,6 +30,14 @@ export interface BOM {
         components: number;
         operations: number;
     };
+    productVersion?: {
+        id: string;
+        version: string;
+        product: {
+            id: string;
+            name: string;
+        };
+    };
 }
 
 export const bomsApi = {

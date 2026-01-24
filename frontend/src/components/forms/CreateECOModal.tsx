@@ -20,10 +20,20 @@ export const CreateECOModal = ({ isOpen, onClose, onSuccess }: CreateECOModalPro
     const [versionUpdate, setVersionUpdate] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    
+    // NEW: Effective date and draft data fields
+    const [effectiveDate, setEffectiveDate] = useState('');
+    const [changeDescription, setChangeDescription] = useState('');
+    const [newSalePrice, setNewSalePrice] = useState('');
+    const [newCostPrice, setNewCostPrice] = useState('');
 
     useEffect(() => {
         if (isOpen) {
             loadProducts();
+            // Set default effective date to 7 days from now
+            const defaultDate = new Date();
+            defaultDate.setDate(defaultDate.getDate() + 7);
+            setEffectiveDate(defaultDate.toISOString().split('T')[0]);
         }
     }, [isOpen]);
 
@@ -47,20 +57,55 @@ export const CreateECOModal = ({ isOpen, onClose, onSuccess }: CreateECOModalPro
             return;
         }
 
+        if (!effectiveDate) {
+            setError('Please set an effective date');
+            setLoading(false);
+            return;
+        }
+
+        // Build draft data based on ECO type
+        const draftData: any = {
+            description: changeDescription || 'No description provided',
+        };
+
+        if (type === 'PRODUCT') {
+            draftData.product = {};
+            if (newSalePrice) draftData.product.salePrice = parseFloat(newSalePrice);
+            if (newCostPrice) draftData.product.costPrice = parseFloat(newCostPrice);
+            
+            // Ensure at least one change is specified
+            if (!newSalePrice && !newCostPrice && !changeDescription) {
+                setError('Please specify at least one change (price or description)');
+                setLoading(false);
+                return;
+            }
+        } else {
+            draftData.bom = {
+                components: [],
+                operations: []
+            };
+        }
+
         try {
             await ecosApi.create({
                 title,
                 type,
                 productId: selectedProduct,
-                status: 'DRAFT',
-                versionUpdate
-            });
+                versionUpdate,
+                effectiveDate: new Date(effectiveDate).toISOString(),
+                draftData
+            } as any);
             onSuccess();
             onClose();
+            // Reset form
             setTitle('');
             setSelectedProduct('');
             setType('PRODUCT');
             setVersionUpdate(true);
+            setEffectiveDate('');
+            setChangeDescription('');
+            setNewSalePrice('');
+            setNewCostPrice('');
         } catch (err: any) {
             setError(err.message || 'Failed to create ECO');
         } finally {
@@ -74,7 +119,7 @@ export const CreateECOModal = ({ isOpen, onClose, onSuccess }: CreateECOModalPro
             onClose={onClose}
             title="Create New ECO"
         >
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
                 <Input
                     label="ECO Title"
                     value={title}
@@ -109,6 +154,66 @@ export const CreateECOModal = ({ isOpen, onClose, onSuccess }: CreateECOModalPro
                     </select>
                 </div>
 
+                <Input
+                    label="Effective Date"
+                    type="date"
+                    value={effectiveDate}
+                    onChange={(e) => setEffectiveDate(e.target.value)}
+                    required
+                />
+
+                {/* Change Details Section */}
+                <div className="border border-zinc-700 rounded-lg p-4 space-y-4 bg-zinc-800/50">
+                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                        📝 Change Details
+                    </h3>
+                    
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-zinc-400">Change Description</label>
+                        <textarea
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white placeholder-zinc-500 focus:outline-none focus:border-primary resize-none h-20"
+                            placeholder="Describe what changes are being made..."
+                            value={changeDescription}
+                            onChange={(e) => setChangeDescription(e.target.value)}
+                        />
+                    </div>
+
+                    {type === 'PRODUCT' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-zinc-400">New Sale Price ($)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-primary"
+                                    placeholder="Leave blank if unchanged"
+                                    value={newSalePrice}
+                                    onChange={(e) => setNewSalePrice(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-zinc-400">New Cost Price ($)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-primary"
+                                    placeholder="Leave blank if unchanged"
+                                    value={newCostPrice}
+                                    onChange={(e) => setNewCostPrice(e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {type === 'BOM' && (
+                        <p className="text-xs text-zinc-500 italic">
+                            💡 BOM component/operation changes can be added after creating the ECO.
+                        </p>
+                    )}
+                </div>
+
                 <div className="flex items-center gap-2 pt-2">
                     <input
                         type="checkbox"
@@ -122,7 +227,7 @@ export const CreateECOModal = ({ isOpen, onClose, onSuccess }: CreateECOModalPro
                     </label>
                 </div>
 
-                {error && <div className="text-red-500 text-sm">{error}</div>}
+                {error && <div className="text-red-500 text-sm bg-red-500/10 p-2 rounded">{error}</div>}
                 <div className="flex justify-end gap-2 mt-6">
                     <Button variant="ghost" onClick={onClose} type="button">Cancel</Button>
                     <Button type="submit" isLoading={loading}>Create ECO</Button>

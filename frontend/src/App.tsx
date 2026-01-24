@@ -16,7 +16,7 @@ import { Signup } from './pages/Signup';
 import { UsersPage } from './pages/Users';
 import { ReportsPage } from './pages/Reports';
 
-// Protected Route Component
+// Protected Route Component - requires authentication
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -26,6 +26,29 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Role-Protected Route Component - requires specific roles
+const RoleProtectedRoute = ({ 
+  children, 
+  allowedRoles 
+}: { 
+  children: React.ReactNode; 
+  allowedRoles: string[] 
+}) => {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div className="h-screen w-full flex items-center justify-center bg-background text-zinc-500">Loading...</div>;
+  }
+
+  const hasAccess = user?.roles?.some((r: string) => allowedRoles.includes(r));
+
+  if (!hasAccess) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -46,16 +69,39 @@ function App() {
                 <AppLayout />
               </ProtectedRoute>
             }>
+              {/* All roles can access */}
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/products" element={<ProductsPage />} />
               <Route path="/products/:id" element={<ProductDetail />} />
               <Route path="/boms" element={<BOMPage />} />
               <Route path="/boms/:id" element={<BOMDetail />} />
-              <Route path="/ecos" element={<ECOPage />} />
-              <Route path="/ecos/:id" element={<ECODetail />} />
               <Route path="/reports" element={<ReportsPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/users" element={<UsersPage />} />
+
+              {/* ECOs - ENGINEERING, APPROVER, ADMIN only (not OPERATIONS) */}
+              <Route path="/ecos" element={
+                <RoleProtectedRoute allowedRoles={['ENGINEERING', 'APPROVER', 'ADMIN']}>
+                  <ECOPage />
+                </RoleProtectedRoute>
+              } />
+              <Route path="/ecos/:id" element={
+                <RoleProtectedRoute allowedRoles={['ENGINEERING', 'APPROVER', 'ADMIN']}>
+                  <ECODetail />
+                </RoleProtectedRoute>
+              } />
+
+              {/* Settings - ADMIN only */}
+              <Route path="/settings" element={
+                <RoleProtectedRoute allowedRoles={['ADMIN']}>
+                  <SettingsPage />
+                </RoleProtectedRoute>
+              } />
+
+              {/* Users - ADMIN only */}
+              <Route path="/users" element={
+                <RoleProtectedRoute allowedRoles={['ADMIN']}>
+                  <UsersPage />
+                </RoleProtectedRoute>
+              } />
             </Route>
 
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

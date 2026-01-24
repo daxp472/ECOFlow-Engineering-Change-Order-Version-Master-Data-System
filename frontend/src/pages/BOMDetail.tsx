@@ -104,7 +104,9 @@ export const BOMDetail = () => {
                         <div className="p-2 rounded-lg bg-zinc-800 text-zinc-400">
                             <Layers className="w-6 h-6" />
                         </div>
-                        <h1 className="text-3xl font-bold text-white">BOM {bom.version}</h1>
+                        <h1 className="text-3xl font-bold text-white">
+                            {bom.productVersion?.product?.name || 'Unknown Product'} - BOM {bom.version}
+                        </h1>
                         <span className={`px-3 py-1 rounded-full text-sm font-medium border ${bom.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' :
                             bom.status === 'ARCHIVED' ? 'bg-zinc-500/10 text-zinc-500 border-zinc-500/20' :
                                 'bg-amber-500/10 text-amber-500 border-amber-500/20'
@@ -115,6 +117,8 @@ export const BOMDetail = () => {
                     {/* Assuming BOM has productVersion info if fetched via getById with includes */}
                     {/* The API interface might need updating if productVersion is not on BOM type */}
                     <p className="text-zinc-400">
+                        Product Version: <span className="text-zinc-300">{bom.productVersion?.version || 'N/A'}</span> •
+                        {components.length} components • {operations.length} operations •
                         Created: {new Date(bom.createdAt).toLocaleDateString()}
                     </p>
                 </div>
