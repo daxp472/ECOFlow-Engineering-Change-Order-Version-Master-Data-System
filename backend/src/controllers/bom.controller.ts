@@ -183,6 +183,17 @@ export const addComponent = async (req: Request, res: Response): Promise<void> =
     const { id } = req.params;
     const { productId, quantity } = req.body;
 
+    // Validate inputs
+    if (!productId) {
+      res.status(400).json({ status: 'error', message: 'Product ID is required' });
+      return;
+    }
+
+    if (!quantity || quantity <= 0) {
+      res.status(400).json({ status: 'error', message: 'Quantity must be greater than 0' });
+      return;
+    }
+
     // CRITICAL FIX: Check if BOM is archived
     const bom = await prisma.bOM.findUnique({ 
       where: { id },
@@ -202,7 +213,7 @@ export const addComponent = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // CRITICAL FIX: Prevent using archived products as components
+    // CRITICAL FIX: Validate product exists and is ACTIVE
     const product = await prisma.product.findUnique({ 
       where: { id: productId },
       select: { status: true, name: true }
@@ -216,7 +227,7 @@ export const addComponent = async (req: Request, res: Response): Promise<void> =
     if (product.status === 'ARCHIVED') {
       res.status(400).json({ 
         status: 'error', 
-        message: `Cannot use archived product "${product.name}" as a component. Archived products cannot be used in active BOMs.` 
+        message: `Cannot use archived product "${product.name}" as a component. Only active products can be used in BOMs.` 
       });
       return;
     }
@@ -227,6 +238,9 @@ export const addComponent = async (req: Request, res: Response): Promise<void> =
         productId,
         quantity,
       },
+      include: {
+        product: { select: { id: true, name: true, status: true } }
+      }
     });
 
     res.status(201).json({
@@ -243,7 +257,18 @@ export const addComponent = async (req: Request, res: Response): Promise<void> =
 export const addOperation = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, time, workCenter } = req.body;
+    const { name, time, workCenter, sequence } = req.body;
+
+    // Validate inputs
+    if (!name || !name.trim()) {
+      res.status(400).json({ status: 'error', message: 'Operation name is required' });
+      return;
+    }
+
+    if (time === undefined || time < 0) {
+      res.status(400).json({ status: 'error', message: 'Operation time must be 0 or greater' });
+      return;
+    }
 
     // CRITICAL FIX: Check if BOM is archived
     const bom = await prisma.bOM.findUnique({ 
@@ -264,10 +289,15 @@ export const addOperation = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const lastOp = await prisma.bOMOperation.findFirst({
-      where: { bomId: id },
-      orderBy: { sequence: 'desc' },
-    });
+    // Auto-calculate sequence if not provided
+    let operationSequence = sequence;
+    if (!operationSequence || operationSequence <= 0) {
+      const lastOp = await prisma.bOMOperation.findFirst({
+        where: { bomId: id },
+        orderBy: { sequence: 'desc' },
+      });
+      operationSequence = (lastOp?.sequence || 0) + 1;
+    }
 
     const operation = await prisma.bOMOperation.create({
       data: {
@@ -275,7 +305,7 @@ export const addOperation = async (req: Request, res: Response): Promise<void> =
         name,
         time: time || 0,
         workCenter: workCenter || 'Default',
-        sequence: (lastOp?.sequence || 0) + 1,
+        sequence: operationSequence,
       },
     });
 
@@ -374,5 +404,82 @@ export const removeOperation = async (req: Request, res: Response): Promise<void
     });
   } catch (error: any) {
     res.status(500).json({ status: 'error', message: 'Failed to remove operation' });
+  }
+};
+
+// Publish BOM (DRAFT → ACTIVE)
+export const publishBOM = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    // Fetch BOM with components and operations
+    const bom = await prisma.bOM.findUnique({
+      where: { id },
+      include: {
+        productVersion: { select: { status: true, version: true, product: { select: { name: true } } } },
+        components: true,
+        operations: true,
+      },
+    });
+
+    if (!bom) {
+      res.status(404).json({ status: 'error', message: 'BoM not found' });
+      return;
+    }
+
+    // Validation: Must be DRAFT
+    if (bom.status !== 'DRAFT') {
+      res.status(400).json({
+        status: 'error',
+        message: `Cannot publish BOM with status ${bom.status}. Only DRAFT BOMs can be published.`,
+      });
+      return;
+    }
+
+    // Validation: Must have at least one component
+    if (!bom.components || bom.components.length === 0) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Cannot publish BOM without components. Please add at least one component.',
+      });
+      return;
+    }
+
+    // Validation: Must have at least one operation
+    if (!bom.operations || bom.operations.length === 0) {
+      res.status(400).json({
+        status: 'error',
+        message: 'Cannot publish BOM without operations. Please add at least one operation.',
+      });
+      return;
+    }
+
+    // Validation: Product version must be ACTIVE
+    if (bom.productVersion.status !== 'ACTIVE') {
+      res.status(400).json({
+        status: 'error',
+        message: `Cannot publish BOM for ${bom.productVersion.status} product version. Product version must be ACTIVE.`,
+      });
+      return;
+    }
+
+    // Update BOM to ACTIVE
+    const publishedBom = await prisma.bOM.update({
+      where: { id },
+      data: { status: 'ACTIVE' },
+      include: {
+        productVersion: { include: { product: true } },
+        components: { include: { product: true } },
+        operations: { orderBy: { sequence: 'asc' } },
+      },
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: `BOM ${bom.version} for ${bom.productVersion.product.name} v${bom.productVersion.version} published successfully`,
+      data: { bom: publishedBom },
+    });
+  } catch (error: any) {
+    res.status(500).json({ status: 'error', message: 'Failed to publish BOM' });
   }
 };

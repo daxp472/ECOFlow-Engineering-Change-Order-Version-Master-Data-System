@@ -10,7 +10,6 @@ import {
     Settings,
     LogOut,
     Bell,
-    Search,
     User,
     UserPlus
 } from 'lucide-react';
@@ -35,10 +34,14 @@ export const AppLayout = () => {
         { icon: Layers, label: 'Bill of Materials', path: '/boms' },
         { icon: GitPullRequest, label: 'ECOs', path: '/ecos' },
         { icon: FileText, label: 'Reports', path: '/reports' },
-        { icon: UserPlus, label: 'Role Requests', path: '/role-requests' },
         { icon: User, label: 'Users', path: '/users', adminOnly: true },
         { icon: Settings, label: 'Settings', path: '/settings', adminOnly: true },
     ];
+
+    // Add Role Requests for non-admin users only
+    if (!isAdmin) {
+        navItems.splice(5, 0, { icon: UserPlus, label: 'Role Requests', path: '/role-requests' });
+    }
 
     // Filter for Operations (remove ECOs)
     if (isOperations && !user?.roles?.some(r => ['ENGINEERING', 'APPROVER', 'ADMIN'].includes(r))) {

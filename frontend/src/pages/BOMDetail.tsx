@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { bomsApi } from '../api/boms.api';
 import type { BOM } from '../api/boms.api';
+import { productsApi } from '../api/products.api';
+import type { Product } from '../api/products.api';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, Layers, Component, Settings, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Layers, Component, Settings, Plus, Trash2, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export const BOMDetail = () => {
@@ -17,15 +19,30 @@ export const BOMDetail = () => {
     const [showAddOperation, setShowAddOperation] = useState(false);
     const [newComponent, setNewComponent] = useState({ productId: '', quantity: 1 });
     const [newOperation, setNewOperation] = useState({ name: '', workCenter: '', time: 0, sequence: 0 });
+    const [availableProducts, setAvailableProducts] = useState<Product[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const isEngineering = user?.roles?.includes('ENGINEERING') || user?.roles?.includes('ADMIN');
-    const canEdit = isEngineering && bom?.status === 'DRAFT';
+    const isOperations = user?.roles?.includes('OPERATIONS');
+    const canEdit = isEngineering && (bom?.status === 'DRAFT' || bom?.status === 'ACTIVE');
 
     useEffect(() => {
         if (id) {
             loadBOM(id);
+            loadActiveProducts();
         }
     }, [id]);
+
+    const loadActiveProducts = async () => {
+        try {
+            const products = await productsApi.getAll();
+            // Filter to only ACTIVE products for component selection
+            const activeProducts = products.filter((p: Product) => p.status === 'ACTIVE');
+            setAvailableProducts(activeProducts);
+        } catch (error) {
+            console.error('Failed to load products', error);
+        }
+    };
 
     const loadBOM = async (bomId: string) => {
         setLoading(true);
@@ -42,14 +59,26 @@ export const BOMDetail = () => {
 
     const handleAddComponent = async () => {
         if (!bom) return;
+        
+        // Validation
+        if (!newComponent.productId || !newComponent.productId.trim()) {
+            alert('Please select a product');
+            return;
+        }
+        if (!newComponent.quantity || newComponent.quantity <= 0) {
+            alert('Please enter a valid quantity (greater than 0)');
+            return;
+        }
+        
         try {
             await bomsApi.addComponent(bom.id, newComponent);
             setNewComponent({ productId: '', quantity: 1 });
+            setSearchQuery('');
             setShowAddComponent(false);
             loadBOM(bom.id);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to add component', error);
-            alert('Failed to add component');
+            alert(error?.response?.data?.message || 'Failed to add component');
         }
     };
 
@@ -65,14 +94,33 @@ export const BOMDetail = () => {
 
     const handleAddOperation = async () => {
         if (!bom) return;
+        
+        // Validation
+        if (!newOperation.name || !newOperation.name.trim()) {
+            alert('Please enter an Operation Name');
+            return;
+        }
+        if (!newOperation.workCenter || !newOperation.workCenter.trim()) {
+            alert('Please enter a Work Center');
+            return;
+        }
+        if (newOperation.time <= 0) {
+            alert('Please enter a valid time (greater than 0)');
+            return;
+        }
+        if (newOperation.sequence < 0) {
+            alert('Please enter a valid sequence number');
+            return;
+        }
+        
         try {
             await bomsApi.addOperation(bom.id, newOperation);
             setNewOperation({ name: '', workCenter: '', time: 0, sequence: 0 });
             setShowAddOperation(false);
             loadBOM(bom.id);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to add operation', error);
-            alert('Failed to add operation');
+            alert(error?.response?.data?.message || 'Failed to add operation');
         }
     };
 
@@ -83,6 +131,35 @@ export const BOMDetail = () => {
             loadBOM(bom.id);
         } catch (error) {
             console.error('Failed to remove operation', error);
+        }
+    };
+
+    const handlePublish = async () => {
+        if (!bom) return;
+        
+        // Validation checks
+        if (bom.components.length === 0) {
+            alert('Cannot publish BOM without components. Please add at least one component.');
+            return;
+        }
+        if (bom.operations.length === 0) {
+            alert('Cannot publish BOM without operations. Please add at least one operation.');
+            return;
+        }
+        
+        const confirmPublish = window.confirm(
+            `Publish BOM ${bom.version}?\n\nThis will make the BOM ACTIVE and available for production use. Components: ${bom.components.length}, Operations: ${bom.operations.length}`
+        );
+        
+        if (!confirmPublish) return;
+        
+        try {
+            await bomsApi.publish(bom.id);
+            loadBOM(bom.id);
+            alert('BOM published successfully!');
+        } catch (error: any) {
+            console.error('Failed to publish BOM', error);
+            alert(error?.response?.data?.message || 'Failed to publish BOM');
         }
     };
 
@@ -124,6 +201,14 @@ export const BOMDetail = () => {
                 </div>
 
                 <div className="flex gap-3">
+                    {isEngineering && bom.status === 'DRAFT' && (
+                        <Button 
+                            onClick={handlePublish}
+                            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+                        >
+                            <Plus className="w-4 h-4" /> Publish BOM
+                        </Button>
+                    )}
                     {isEngineering && bom.status === 'ACTIVE' && (
                         <Button onClick={() => navigate('/ecos')} className="flex items-center gap-2">
                             <Plus className="w-4 h-4" /> Create ECO
@@ -153,23 +238,52 @@ export const BOMDetail = () => {
 
                     {showAddComponent && canEdit && (
                         <div className="bg-zinc-900/50 p-4 rounded-lg mb-4 space-y-3">
-                            <input
-                                type="text"
-                                placeholder="Product ID"
-                                value={newComponent.productId}
-                                onChange={(e) => setNewComponent({ ...newComponent, productId: e.target.value })}
-                                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
-                            />
-                            <input
-                                type="number"
-                                placeholder="Quantity"
-                                value={newComponent.quantity}
-                                onChange={(e) => setNewComponent({ ...newComponent, quantity: parseInt(e.target.value) })}
-                                className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
-                            />
+                            <div className="relative">
+                                <label className="block text-xs text-zinc-400 mb-1">Product *</label>
+                                <input
+                                    type="text"
+                                    placeholder="Search products..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                                />
+                                {searchQuery && (
+                                    <div className="absolute z-10 w-full mt-1 max-h-48 overflow-y-auto bg-zinc-800 border border-zinc-700 rounded shadow-lg">
+                                        {availableProducts
+                                            .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                                            .map(product => (
+                                                <button
+                                                    key={product.id}
+                                                    onClick={() => {
+                                                        setNewComponent({ ...newComponent, productId: product.id });
+                                                        setSearchQuery(product.name);
+                                                    }}
+                                                    className="w-full text-left px-3 py-2 hover:bg-zinc-700 text-white text-sm transition-colors"
+                                                >
+                                                    {product.name}
+                                                    <span className="text-xs text-emerald-500 ml-2">ACTIVE</span>
+                                                </button>
+                                            ))}
+                                        {availableProducts.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                                            <div className="px-3 py-2 text-zinc-500 text-sm">No active products found</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block text-xs text-zinc-400 mb-1">Quantity *</label>
+                                <input
+                                    type="number"
+                                    placeholder="Quantity"
+                                    min="1"
+                                    value={newComponent.quantity}
+                                    onChange={(e) => setNewComponent({ ...newComponent, quantity: parseInt(e.target.value) || 1 })}
+                                    className="w-full bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                                />
+                            </div>
                             <div className="flex gap-2">
-                                <Button size="sm" onClick={handleAddComponent} className="bg-emerald-600 hover:bg-emerald-700">Save</Button>
-                                <Button size="sm" variant="ghost" onClick={() => setShowAddComponent(false)}>Cancel</Button>
+                                <Button size="sm" onClick={handleAddComponent} className="bg-emerald-600 hover:bg-emerald-700">Add Component</Button>
+                                <Button size="sm" variant="ghost" onClick={() => { setShowAddComponent(false); setSearchQuery(''); }}>Cancel</Button>
                             </div>
                         </div>
                     )}
@@ -179,7 +293,10 @@ export const BOMDetail = () => {
                             <thead className="text-xs uppercase text-zinc-500 bg-zinc-800/50">
                                 <tr>
                                     <th className="px-4 py-3 rounded-l-lg">Product</th>
-                                    <th className="px-4 py-3 rounded-r-lg">Quantity</th>
+                                    <th className="px-4 py-3">Status</th>
+                                    <th className="px-4 py-3">Qty</th>
+                                    {canEdit && <th className="px-4 py-3 rounded-r-lg text-right">Actions</th>}
+                                    {!canEdit && <th className="px-4 py-3 rounded-r-lg"></th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-800">
@@ -189,12 +306,28 @@ export const BOMDetail = () => {
                                             <td className="px-4 py-3 text-white">
                                                 {comp.product?.name || comp.productId}
                                             </td>
-                                            <td className="px-4 py-3 text-zinc-300 flex justify-between items-center">
-                                                <span>{comp.quantity}</span>
+                                            <td className="px-4 py-3">
+                                                <span className={`text-xs px-2 py-1 rounded-full border ${
+                                                    comp.product?.status === 'ACTIVE' 
+                                                        ? 'text-emerald-500 border-emerald-500/20 bg-emerald-500/10'
+                                                        : 'text-zinc-500 border-zinc-500/20 bg-zinc-500/10'
+                                                }`}>
+                                                    {comp.product?.status || 'N/A'}
+                                                </span>
+                                                {comp.product?.status === 'ARCHIVED' && (
+                                                    <div className="flex items-center gap-1 mt-1 text-xs text-amber-500">
+                                                        <AlertCircle className="w-3 h-3" />
+                                                        <span>Archived component</span>
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 text-zinc-300">{comp.quantity}</td>
+                                            <td className="px-4 py-3 text-right">
                                                 {canEdit && (
                                                     <button
                                                         onClick={() => handleRemoveComponent(comp.id)}
-                                                        className="text-rose-500 hover:text-rose-400 ml-2"
+                                                        className="text-rose-500 hover:text-rose-400"
+                                                        title="Remove component"
                                                     >
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
@@ -204,8 +337,8 @@ export const BOMDetail = () => {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={2} className="px-4 py-8 text-center text-zinc-500">
-                                            No components
+                                        <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
+                                            No components added yet
                                         </td>
                                     </tr>
                                 )}
@@ -277,7 +410,9 @@ export const BOMDetail = () => {
                                     <th className="px-4 py-3 rounded-l-lg">Seq</th>
                                     <th className="px-4 py-3">Name</th>
                                     <th className="px-4 py-3">Work Center</th>
-                                    <th className="px-4 py-3 rounded-r-lg">Time (m)</th>
+                                    <th className="px-4 py-3">Time (min)</th>
+                                    {canEdit && <th className="px-4 py-3 rounded-r-lg text-right">Actions</th>}
+                                    {!canEdit && <th className="px-4 py-3 rounded-r-lg"></th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-zinc-800">
@@ -287,12 +422,13 @@ export const BOMDetail = () => {
                                             <td className="px-4 py-3 text-zinc-500 font-mono">{op.sequence}</td>
                                             <td className="px-4 py-3 text-white">{op.name}</td>
                                             <td className="px-4 py-3 text-zinc-300">{op.workCenter}</td>
-                                            <td className="px-4 py-3 text-zinc-300 flex justify-between items-center">
-                                                <span>{op.time}</span>
+                                            <td className="px-4 py-3 text-zinc-300">{op.time}</td>
+                                            <td className="px-4 py-3 text-right">
                                                 {canEdit && (
                                                     <button
                                                         onClick={() => handleRemoveOperation(op.id)}
-                                                        className="text-rose-500 hover:text-rose-400 ml-2"
+                                                        className="text-rose-500 hover:text-rose-400"
+                                                        title="Remove operation"
                                                     >
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
@@ -302,8 +438,8 @@ export const BOMDetail = () => {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={4} className="px-4 py-8 text-center text-zinc-500">
-                                            No operations
+                                        <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
+                                            No operations defined yet
                                         </td>
                                     </tr>
                                 )}

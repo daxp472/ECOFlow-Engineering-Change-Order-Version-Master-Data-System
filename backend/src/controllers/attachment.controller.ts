@@ -143,11 +143,11 @@ export const deleteProductAttachment = async (req: any, res: Response): Promise<
       return;
     }
 
-    // Cannot delete from ACTIVE or ARCHIVED product versions
-    if (attachment.productVersion.status !== 'DRAFT') {
+    // Cannot delete from ACTIVE or ARCHIVED product versions (all versions are immutable)
+    if (attachment.productVersion.status === 'ACTIVE' || attachment.productVersion.status === 'ARCHIVED') {
       res.status(400).json({
         status: 'error',
-        message: `Cannot delete attachments from ${attachment.productVersion.status} product version. Use ECO workflow.`,
+        message: `Cannot delete attachments from ${attachment.productVersion.status} product version. Product versions are immutable.`,
       });
       return;
     }

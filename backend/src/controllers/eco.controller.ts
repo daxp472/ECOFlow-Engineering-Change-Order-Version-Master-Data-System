@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
-import { ECOStatus, ECOType, Prisma } from '@prisma/client';
+import { ECOStatus, ECOType, Prisma, ApprovalStatus, AuditAction, EntityType } from '@prisma/client';
 import { sendNotificationToUser } from './notification.controller';
 
 // Internal function to apply ECO (can be called from transaction)
@@ -81,8 +81,8 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
       await tx.auditLog.create({
         data: {
           userId,
-          action: 'VERSION_CREATE',
-          entityType: 'PRODUCT_VERSION',
+          action: AuditAction.VERSION_CREATE,
+          entityType: EntityType.PRODUCT_VERSION,
           entityId: newVersion.id,
           ecoId: eco.id,
           oldValue: { versionId: currentVersion.id, version: currentVersion.version },
@@ -116,6 +116,17 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
     const currentBom = eco.bom!;
     const currentVersion = currentBom.version;
 
+    // Fetch draft changes from ECO BOM draft tables
+    const componentDrafts = await tx.eCOBOMComponentDraft.findMany({
+      where: { ecoId },
+      include: { product: true }
+    });
+
+    const operationDrafts = await tx.eCOBOMOperationDraft.findMany({
+      where: { ecoId },
+      orderBy: { sequence: 'asc' }
+    });
+
     if (createNewVersion) {
       const versionNumber = parseFloat(currentVersion.replace('v', ''));
       const newVersionNumber = `v${(versionNumber + 1.0).toFixed(1)}`;
@@ -133,8 +144,31 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
         },
       });
 
-      const newComponents = draftData.bom?.components || currentBom.components;
-      for (const comp of newComponents) {
+      // Apply component changes from drafts
+      // Start with existing components, apply modifications and removals
+      const componentMap = new Map();
+      
+      // Add all current components first
+      for (const comp of currentBom.components) {
+        componentMap.set(comp.id, { productId: comp.productId, quantity: comp.quantity });
+      }
+
+      // Apply draft changes
+      for (const draft of componentDrafts) {
+        if (draft.changeType === 'ADDED') {
+          // Add new component
+          componentMap.set(`new_${draft.id}`, { productId: draft.productId, quantity: draft.quantity });
+        } else if (draft.changeType === 'MODIFIED' && draft.originalComponentId) {
+          // Modify existing component
+          componentMap.set(draft.originalComponentId, { productId: draft.productId, quantity: draft.quantity });
+        } else if (draft.changeType === 'REMOVED' && draft.originalComponentId) {
+          // Remove component
+          componentMap.delete(draft.originalComponentId);
+        }
+      }
+
+      // Create all final components in new BOM
+      for (const [_key, comp] of componentMap.entries()) {
         await tx.bOMComponent.create({
           data: {
             bomId: newBom.id,
@@ -144,15 +178,34 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
         });
       }
 
-      const newOperations = draftData.bom?.operations || currentBom.operations;
-      for (const op of newOperations) {
+      // Apply operation changes from drafts
+      const operationMap = new Map();
+      
+      // Add all current operations first
+      for (const op of currentBom.operations) {
+        operationMap.set(op.id, { name: op.name, workCenter: op.workCenter, time: op.time, sequence: op.sequence });
+      }
+
+      // Apply draft changes
+      for (const draft of operationDrafts) {
+        if (draft.changeType === 'ADDED') {
+          operationMap.set(`new_${draft.id}`, { name: draft.name, workCenter: draft.workCenter, time: draft.time, sequence: draft.sequence });
+        } else if (draft.changeType === 'MODIFIED' && draft.originalOperationId) {
+          operationMap.set(draft.originalOperationId, { name: draft.name, workCenter: draft.workCenter, time: draft.time, sequence: draft.sequence });
+        } else if (draft.changeType === 'REMOVED' && draft.originalOperationId) {
+          operationMap.delete(draft.originalOperationId);
+        }
+      }
+
+      // Create all final operations in new BOM
+      for (const [_key, op] of operationMap.entries()) {
         await tx.bOMOperation.create({
           data: {
             bomId: newBom.id,
             name: op.name,
             workCenter: op.workCenter,
             time: op.time,
-            sequence: op.sequence || 0,
+            sequence: op.sequence,
           },
         });
       }
@@ -168,8 +221,8 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
       await tx.auditLog.create({
         data: {
           userId,
-          action: 'VERSION_CREATE',
-          entityType: 'BOM',
+          action: AuditAction.VERSION_CREATE,
+          entityType: EntityType.BOM,
           entityId: newBom.id,
           ecoId: eco.id,
           oldValue: { bomId: eco.bomId, version: currentVersion },
@@ -223,8 +276,8 @@ async function applyECOInternal(ecoId: string, userId: string, tx: Prisma.Transa
   await tx.auditLog.create({
     data: {
       userId,
-      action: 'UPDATE',
-      entityType: 'ECO',
+      action: AuditAction.UPDATE,
+      entityType: EntityType.ECO,
       entityId: ecoId,
       ecoId: ecoId,
       oldValue: { status: 'APPROVED' },
@@ -309,8 +362,8 @@ export const createECO = async (req: Request, res: Response): Promise<void> => {
     // CRITICAL FIX: Add audit log for ECO creation
     await prisma.auditLog.create({
       data: {
-        action: 'CREATE',
-        entityType: 'ECO',
+        action: AuditAction.CREATE,
+        entityType: EntityType.ECO,
         entityId: eco.id,
         userId,
         ecoId: eco.id,
@@ -377,15 +430,21 @@ export const getECOById = async (req: Request, res: Response): Promise<void> => 
       where: { id },
       include: {
         product: true,
-        bom: true,
-        creator: { select: { id: true, name: true, email: true } },
-        approvals: {
+        bom: {
           include: {
-            approver: { select: { id: true, name: true, email: true } },
-            stage: true,
-          },
-          orderBy: { createdAt: 'asc' },
+            components: { include: { product: true } },
+            operations: { orderBy: { sequence: 'asc' } },
+            productVersion: { include: { product: true } }
+          }
         },
+        creator: { select: { id: true, name: true, email: true } },
+        approvals: { include: { stage: true, approver: { select: { name: true, email: true } } } },
+        attachments: true,
+        componentDrafts: { 
+          include: { product: { select: { id: true, name: true, status: true } } },
+          orderBy: { createdAt: 'asc' }
+        },
+        operationDrafts: { orderBy: { sequence: 'asc' } },
       },
     });
 
@@ -458,50 +517,84 @@ export const submitECO = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    if (!eco.effectiveDate) {
-      res.status(400).json({
-        status: 'error',
-        message: 'Cannot submit ECO: Effective date is required'
-      });
-      return;
+    // Validate based on ECO type
+    if (eco.type === 'BOM') {
+      // For BOM ECOs, check draft tables
+      const [componentCount, operationCount] = await Promise.all([
+        prisma.eCOBOMComponentDraft.count({ where: { ecoId: id } }),
+        prisma.eCOBOMOperationDraft.count({ where: { ecoId: id } })
+      ]);
+
+      if (componentCount === 0 && operationCount === 0) {
+        res.status(400).json({
+          status: 'error',
+          message: 'Cannot submit BOM ECO: At least one component or operation change is required'
+        });
+        return;
+      }
+
+      // Validate BOM is ACTIVE
+      if (eco.bomId) {
+        const bom = await prisma.bOM.findUnique({
+          where: { id: eco.bomId },
+          select: { status: true }
+        });
+
+        if (!bom || bom.status !== 'ACTIVE') {
+          res.status(400).json({
+            status: 'error',
+            message: 'Cannot submit ECO: Target BOM must be ACTIVE'
+          });
+          return;
+        }
+      }
+    } else if (eco.type === 'PRODUCT') {
+      // For Product ECOs, check draftData
+      if (!eco.draftData || Object.keys(eco.draftData).length === 0) {
+        res.status(400).json({
+          status: 'error',
+          message: 'Cannot submit Product ECO: Draft changes are required'
+        });
+        return;
+      }
+
+      const draft = eco.draftData as any;
+      if (!draft.product || Object.keys(draft.product).length === 0) {
+        res.status(400).json({
+          status: 'error',
+          message: 'Product ECO must include product changes'
+        });
+        return;
+      }
     }
 
-    if (!eco.draftData || Object.keys(eco.draftData).length === 0) {
-      res.status(400).json({
-        status: 'error',
-        message: 'Cannot submit ECO: Draft changes are required. Please specify what changes to make.'
-      });
-      return;
-    }
+    // Get the first approval stage that requires approval
+    const firstApprovalStage = await prisma.approvalStage.findFirst({
+      where: { requiresApproval: true },
+      orderBy: { order: 'asc' }
+    });
 
-    // Validate draft data content based on ECO type
-    const draft = eco.draftData as any;
-    if (eco.type === 'PRODUCT' && !draft.product) {
-      res.status(400).json({
+    if (!firstApprovalStage) {
+      res.status(500).json({
         status: 'error',
-        message: 'Product ECO must include product changes in draft data'
-      });
-      return;
-    }
-
-    if (eco.type === 'BOM' && !draft.bom) {
-      res.status(400).json({
-        status: 'error',
-        message: 'BOM ECO must include BOM changes (components/operations) in draft data'
+        message: 'No approval stages configured in the system'
       });
       return;
     }
 
     const updated = await prisma.eCO.update({
       where: { id },
-      data: { status: ECOStatus.IN_PROGRESS },
+      data: { 
+        status: ECOStatus.IN_PROGRESS,
+        currentStage: firstApprovalStage.name
+      },
     });
 
     // CRITICAL FIX: Add audit log for ECO submission
     await prisma.auditLog.create({
       data: {
-        action: 'UPDATE',
-        entityType: 'ECO',
+        action: AuditAction.UPDATE,
+        entityType: EntityType.ECO,
         entityId: id,
         userId,
         ecoId: id,
@@ -546,7 +639,11 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
     });
 
     if (!currentStage) {
-      res.status(400).json({ status: 'error', message: 'Invalid approval stage' });
+      console.error(`❌ Invalid approval stage: ECO ${id} has currentStage="${eco.currentStage}" which doesn't exist in approval_stages table`);
+      res.status(400).json({ 
+        status: 'error', 
+        message: `Invalid approval stage: "${eco.currentStage}". Please contact system administrator.` 
+      });
       return;
     }
 
@@ -559,7 +656,7 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
           stageId: currentStage.id,
           approvedBy: userId,
           approvedAt: new Date(),
-          status: approved ? 'APPROVED' : 'REJECTED',
+          status: approved ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
           comments,
         },
       });
@@ -567,8 +664,8 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
       // CRITICAL FIX: Add audit log for approval/rejection
       await tx.auditLog.create({
         data: {
-          action: approved ? 'APPROVE' : 'REJECT',
-          entityType: 'ECO_APPROVAL',
+          action: approved ? AuditAction.APPROVE : AuditAction.REJECT,
+          entityType: EntityType.ECO_APPROVAL,
           entityId: id,
           userId,
           ecoId: id,
@@ -600,8 +697,8 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
           // CRITICAL FIX: Add audit log for stage transition
           await tx.auditLog.create({
             data: {
-              action: 'STAGE_TRANSITION',
-              entityType: 'ECO',
+              action: AuditAction.STAGE_TRANSITION,
+              entityType: EntityType.ECO,
               entityId: id,
               userId,
               ecoId: id,
@@ -628,8 +725,8 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
 
             await tx.auditLog.create({
               data: {
-                action: 'UPDATE',
-                entityType: 'ECO',
+                action: AuditAction.UPDATE,
+                entityType: EntityType.ECO,
                 entityId: id,
                 userId,
                 ecoId: id,
@@ -672,7 +769,7 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
         : `Your ECO "${eco.title}" has been REJECTED at stage: ${eco.currentStage}`;
 
       await sendNotificationToUser(eco.createdBy, {
-        type: approved ? 'SUCCESS' : 'error',
+        type: approved ? 'ECO_APPROVED' : 'ECO_REJECTED',
         title: `ECO ${approved ? 'Approved' : 'Rejected'}`,
         message,
         data: { ecoId: eco.id }
@@ -748,5 +845,286 @@ export const applyECO = async (req: Request, res: Response): Promise<void> => {
   } catch (error: any) {
     console.error('Apply ECO error:', error);
     res.status(500).json({ status: 'error', message: error.message || 'Failed to apply ECO' });
+  }
+};
+
+// ========================================
+// ECO BOM DRAFT MANAGEMENT
+// ========================================
+
+// Add component to ECO BOM draft
+export const addECOComponentDraft = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { productId, quantity, changeType, originalComponentId } = req.body;
+
+    if (!productId || !quantity || quantity <= 0) {
+      res.status(400).json({ status: 'error', message: 'Product ID and valid quantity are required' });
+      return;
+    }
+
+    // Validate ECO exists and is in DRAFT status
+    const eco = await prisma.eCO.findUnique({
+      where: { id },
+      select: { status: true, type: true, bomId: true }
+    });
+
+    if (!eco) {
+      res.status(404).json({ status: 'error', message: 'ECO not found' });
+      return;
+    }
+
+    if (eco.status !== 'DRAFT') {
+      res.status(400).json({ status: 'error', message: 'Can only edit drafts in DRAFT status' });
+      return;
+    }
+
+    if (eco.type !== 'BOM') {
+      res.status(400).json({ status: 'error', message: 'This endpoint is only for BOM ECOs' });
+      return;
+    }
+
+    // Validate product exists and is ACTIVE
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { status: true, name: true }
+    });
+
+    if (!product) {
+      res.status(404).json({ status: 'error', message: 'Product not found' });
+      return;
+    }
+
+    if (product.status === 'ARCHIVED') {
+      res.status(400).json({
+        status: 'error',
+        message: `Cannot use archived product "${product.name}" in BOM ECO`
+      });
+      return;
+    }
+
+    const componentDraft = await prisma.eCOBOMComponentDraft.create({
+      data: {
+        ecoId: id,
+        productId,
+        quantity,
+        changeType: changeType || 'ADDED',
+        originalComponentId: originalComponentId || null,
+      },
+      include: {
+        product: { select: { id: true, name: true, status: true } }
+      }
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Component draft added successfully',
+      data: { componentDraft },
+    });
+  } catch (error: any) {
+    console.error('Add component draft error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to add component draft' });
+  }
+};
+
+// Update component draft
+export const updateECOComponentDraft = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id, draftId } = req.params;
+    const { quantity, changeType } = req.body;
+
+    const eco = await prisma.eCO.findUnique({
+      where: { id },
+      select: { status: true }
+    });
+
+    if (!eco || eco.status !== 'DRAFT') {
+      res.status(400).json({ status: 'error', message: 'Can only edit drafts in DRAFT status' });
+      return;
+    }
+
+    const updates: any = {};
+    if (quantity !== undefined) {
+      if (quantity <= 0) {
+        res.status(400).json({ status: 'error', message: 'Quantity must be greater than 0' });
+        return;
+      }
+      updates.quantity = quantity;
+    }
+    if (changeType !== undefined) updates.changeType = changeType;
+
+    const componentDraft = await prisma.eCOBOMComponentDraft.update({
+      where: { id: draftId },
+      data: updates,
+      include: {
+        product: { select: { id: true, name: true, status: true } }
+      }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Component draft updated successfully',
+      data: { componentDraft },
+    });
+  } catch (error: any) {
+    console.error('Update component draft error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to update component draft' });
+  }
+};
+
+// Remove component draft
+export const removeECOComponentDraft = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id, draftId } = req.params;
+
+    const eco = await prisma.eCO.findUnique({
+      where: { id },
+      select: { status: true }
+    });
+
+    if (!eco || eco.status !== 'DRAFT') {
+      res.status(400).json({ status: 'error', message: 'Can only edit drafts in DRAFT status' });
+      return;
+    }
+
+    await prisma.eCOBOMComponentDraft.delete({
+      where: { id: draftId }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Component draft removed successfully',
+    });
+  } catch (error: any) {
+    console.error('Remove component draft error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to remove component draft' });
+  }
+};
+
+// Add operation to ECO BOM draft
+export const addECOOperationDraft = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { name, time, workCenter, sequence, changeType, originalOperationId } = req.body;
+
+    if (!name || time === undefined || time < 0) {
+      res.status(400).json({ status: 'error', message: 'Name and valid time are required' });
+      return;
+    }
+
+    const eco = await prisma.eCO.findUnique({
+      where: { id },
+      select: { status: true, type: true }
+    });
+
+    if (!eco) {
+      res.status(404).json({ status: 'error', message: 'ECO not found' });
+      return;
+    }
+
+    if (eco.status !== 'DRAFT') {
+      res.status(400).json({ status: 'error', message: 'Can only edit drafts in DRAFT status' });
+      return;
+    }
+
+    if (eco.type !== 'BOM') {
+      res.status(400).json({ status: 'error', message: 'This endpoint is only for BOM ECOs' });
+      return;
+    }
+
+    const operationDraft = await prisma.eCOBOMOperationDraft.create({
+      data: {
+        ecoId: id,
+        name,
+        time,
+        workCenter: workCenter || 'Default',
+        sequence: sequence !== undefined ? sequence : 0,
+        changeType: changeType || 'ADDED',
+        originalOperationId: originalOperationId || null,
+      },
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Operation draft added successfully',
+      data: { operationDraft },
+    });
+  } catch (error: any) {
+    console.error('Add operation draft error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to add operation draft' });
+  }
+};
+
+// Update operation draft
+export const updateECOOperationDraft = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id, draftId } = req.params;
+    const { name, time, workCenter, sequence, changeType } = req.body;
+
+    const eco = await prisma.eCO.findUnique({
+      where: { id },
+      select: { status: true }
+    });
+
+    if (!eco || eco.status !== 'DRAFT') {
+      res.status(400).json({ status: 'error', message: 'Can only edit drafts in DRAFT status' });
+      return;
+    }
+
+    const updates: any = {};
+    if (name !== undefined) updates.name = name;
+    if (time !== undefined) {
+      if (time < 0) {
+        res.status(400).json({ status: 'error', message: 'Time cannot be negative' });
+        return;
+      }
+      updates.time = time;
+    }
+    if (workCenter !== undefined) updates.workCenter = workCenter;
+    if (sequence !== undefined) updates.sequence = sequence;
+    if (changeType !== undefined) updates.changeType = changeType;
+
+    const operationDraft = await prisma.eCOBOMOperationDraft.update({
+      where: { id: draftId },
+      data: updates,
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Operation draft updated successfully',
+      data: { operationDraft },
+    });
+  } catch (error: any) {
+    console.error('Update operation draft error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to update operation draft' });
+  }
+};
+
+// Remove operation draft
+export const removeECOOperationDraft = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id, draftId } = req.params;
+
+    const eco = await prisma.eCO.findUnique({
+      where: { id },
+      select: { status: true }
+    });
+
+    if (!eco || eco.status !== 'DRAFT') {
+      res.status(400).json({ status: 'error', message: 'Can only edit drafts in DRAFT status' });
+      return;
+    }
+
+    await prisma.eCOBOMOperationDraft.delete({
+      where: { id: draftId }
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Operation draft removed successfully',
+    });
+  } catch (error: any) {
+    console.error('Remove operation draft error:', error);
+    res.status(500).json({ status: 'error', message: 'Failed to remove operation draft' });
   }
 };

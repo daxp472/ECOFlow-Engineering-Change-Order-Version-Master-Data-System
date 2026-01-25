@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
-import { UserRole } from '@prisma/client';
+import { UserRole, AuditAction, EntityType } from '@prisma/client';
 
 // Assign roles to user (Admin only)
 export const assignRoles = async (req: Request, res: Response): Promise<void> => {
@@ -45,8 +45,8 @@ export const assignRoles = async (req: Request, res: Response): Promise<void> =>
     // Log audit
     await prisma.auditLog.create({
       data: {
-        action: 'UPDATE',
-        entityType: 'USER',
+        action: AuditAction.UPDATE,
+        entityType: EntityType.USER,
         entityId: id,
         oldValue: {}, // Previous roles
         newValue: { roles },
@@ -120,8 +120,8 @@ export const addRole = async (req: Request, res: Response): Promise<void> => {
     // Log audit
     await prisma.auditLog.create({
       data: {
-        action: 'UPDATE',
-        entityType: 'USER',
+        action: AuditAction.UPDATE,
+        entityType: EntityType.USER,
         entityId: id,
         oldValue: { roles: user.roles },
         newValue: { roles: updatedUser.roles },
@@ -204,8 +204,8 @@ export const removeRole = async (req: Request, res: Response): Promise<void> => 
     // Log audit
     await prisma.auditLog.create({
       data: {
-        action: 'UPDATE',
-        entityType: 'USER',
+        action: AuditAction.UPDATE,
+        entityType: EntityType.USER,
         entityId: id,
         oldValue: { roles: user.roles },
         newValue: { roles: updatedUser.roles },

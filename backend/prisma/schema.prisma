@@ -96,7 +96,6 @@ model RefreshToken {
 // ========================================
 
 enum ProductStatus {
-  DRAFT
   ACTIVE
   ARCHIVED
 }
@@ -104,7 +103,7 @@ enum ProductStatus {
 model Product {
   id                String        @id @default(cuid())
   name              String
-  status            ProductStatus @default(DRAFT)
+  status            ProductStatus @default(ACTIVE)
   currentVersionId  String?       @unique
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
@@ -114,6 +113,7 @@ model Product {
   currentVersion ProductVersion?  @relation("CurrentVersion", fields: [currentVersionId], references: [id])
   ecos           ECO[]
   bomComponents  BOMComponent[]
+  ecoComponentDrafts ECOBOMComponentDraft[]
 
   @@map("products")
 }
@@ -125,7 +125,7 @@ model ProductVersion {
   salePrice   Float
   costPrice   Float
   attachments Json?         @default("[]") // Legacy: Array of file URLs (kept for backward compatibility)
-  status      ProductStatus @default(DRAFT)
+  status      ProductStatus @default(ACTIVE)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -256,6 +256,8 @@ model ECO {
   approvals   ECOApproval[]
   auditLogs   AuditLog[]
   attachments ECOAttachment[]
+  componentDrafts ECOBOMComponentDraft[]
+  operationDrafts ECOBOMOperationDraft[]
 
   @@map("ecos")
 }
@@ -375,6 +377,52 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// ========================================
+// ECO BOM DRAFT STORAGE
+// ========================================
+
+enum DraftChangeType {
+  ADDED
+  MODIFIED
+  REMOVED
+}
+
+model ECOBOMComponentDraft {
+  id           String           @id @default(cuid())
+  ecoId        String
+  productId    String
+  quantity     Float
+  changeType   DraftChangeType  @default(ADDED)
+  originalComponentId String?  // Reference to original BOMComponent if MODIFIED/REMOVED
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  // Relations
+  eco     ECO     @relation(fields: [ecoId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([ecoId])
+  @@map("eco_bom_component_drafts")
+}
+
+model ECOBOMOperationDraft {
+  id                  String           @id @default(cuid())
+  ecoId               String
+  name                String
+  time                Float            // in minutes
+  workCenter          String
+  sequence            Int
+  changeType          DraftChangeType  @default(ADDED)
+  originalOperationId String?          // Reference to original BOMOperation if MODIFIED/REMOVED
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  // Relations
+  eco ECO @relation(fields: [ecoId], references: [id], onDelete: Cascade)
+
+  @@index([ecoId])
+  @@map("eco_bom_operation_drafts")
+}
 
 // ========================================
 // NOTIFICATIONS & REAL-TIME EVENTS

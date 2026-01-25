@@ -30,16 +30,12 @@ export const CreateProductModal = ({ isOpen, onClose, onSuccess }: CreateProduct
                 return;
             }
 
-            const product = await productsApi.create({ name });
-
-            // If user provided pricing, create a new version with those prices
-            if (product && (salePrice || costPrice)) {
-                await productsApi.createVersion(product.id, {
-                    version: version,
-                    salePrice: parseFloat(salePrice) || 0,
-                    costPrice: parseFloat(costPrice) || 0,
-                });
-            }
+            // Create product with initial prices
+            await productsApi.create({ 
+                name,
+                salePrice: parseFloat(salePrice) || 0,
+                costPrice: parseFloat(costPrice) || 0,
+            });
 
             onSuccess();
             onClose();

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ecosApi } from '../api/ecos.api';
 import type { ECO } from '../api/ecos.api';
@@ -15,6 +15,8 @@ export const ECODetail = () => {
     const [eco, setEco] = useState<ECO | null>(null);
     const [loading, setLoading] = useState(true);
     const [reviewComment, setReviewComment] = useState('');
+    const [isReviewing, setIsReviewing] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const isEngineering = user?.roles?.includes('ENGINEERING') || user?.roles?.includes('ADMIN');
     const isApprover = user?.roles?.includes('APPROVER') || user?.roles?.includes('ADMIN');
@@ -40,26 +42,34 @@ export const ECODetail = () => {
     };
 
     const handleSubmit = async () => {
-        if (!eco) return;
+        if (!eco || isSubmitting) return;
+        
+        setIsSubmitting(true);
         try {
             await ecosApi.submit(eco.id);
             alert('✅ ECO submitted for approval!');
-            loadECO(eco.id);
+            await loadECO(eco.id);
         } catch (error: any) {
             console.error('Failed to submit ECO', error);
             const errorMsg = error?.response?.data?.message || 'Failed to submit ECO';
             alert('❌ ' + errorMsg);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
     const handleReview = async (status: 'APPROVED' | 'REJECTED') => {
-        if (!eco) return;
+        if (!eco || isReviewing) return;
+        
+        setIsReviewing(true);
         try {
             await ecosApi.review(eco.id, status, reviewComment);
             setReviewComment('');
-            loadECO(eco.id);
+            await loadECO(eco.id);
         } catch (error) {
             console.error('Failed to review ECO', error);
+        } finally {
+            setIsReviewing(false);
         }
     };
 
@@ -103,8 +113,20 @@ export const ECODetail = () => {
 
                 <div className="flex gap-3">
                     {canSubmit && (
-                        <Button onClick={handleSubmit} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700">
-                            <Send className="w-4 h-4" /> Submit for Approval
+                        <Button 
+                            onClick={handleSubmit} 
+                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                            disabled={isSubmitting}
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <span className="animate-spin mr-2">⏳</span> Submitting...
+                                </>
+                            ) : (
+                                <>
+                                    <Send className="w-4 h-4" /> Submit for Approval
+                                </>
+                            )}
                         </Button>
                     )}
                 </div>
@@ -255,20 +277,39 @@ export const ECODetail = () => {
                                     placeholder="Add review comments..."
                                     value={reviewComment}
                                     onChange={(e) => setReviewComment(e.target.value)}
+                                    disabled={isReviewing}
                                 />
                                 <div className="grid grid-cols-2 gap-3">
                                     <Button
                                         onClick={() => handleReview('APPROVED')}
                                         className="bg-emerald-600 hover:bg-emerald-700 w-full"
+                                        disabled={isReviewing}
                                     >
-                                        <CheckCircle className="w-4 h-4 mr-2" /> Approve
+                                        {isReviewing ? (
+                                            <>
+                                                <span className="animate-spin mr-2">⏳</span> Processing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircle className="w-4 h-4 mr-2" /> Approve
+                                            </>
+                                        )}
                                     </Button>
                                     <Button
                                         onClick={() => handleReview('REJECTED')}
                                         variant="outline"
                                         className="border-rose-500/50 text-rose-500 hover:bg-rose-500/10 w-full"
+                                        disabled={isReviewing}
                                     >
-                                        <XCircle className="w-4 h-4 mr-2" /> Reject
+                                        {isReviewing ? (
+                                            <>
+                                                <span className="animate-spin mr-2">⏳</span> Processing...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <XCircle className="w-4 h-4 mr-2" /> Reject
+                                            </>
+                                        )}
                                     </Button>
                                 </div>
                             </div>
@@ -287,15 +328,29 @@ export const ECODetail = () => {
                                 <Button
                                     onClick={() => handleReview('APPROVED')}
                                     className="bg-emerald-600 hover:bg-emerald-700 flex-1"
+                                    disabled={isReviewing}
                                 >
-                                    <CheckCircle className="w-4 h-4 mr-2" /> Approve ECO
+                                    {isReviewing ? (
+                                        <>
+                                            <span className="animate-spin mr-2">⏳</span> Processing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle className="w-4 h-4 mr-2" /> Approve ECO
+                                        </>
+                                    )}
                                 </Button>
                                 <Button
                                     onClick={() => handleReview('REJECTED')}
                                     variant="outline"
                                     className="border-rose-500/50 text-rose-500 hover:bg-rose-500/10"
+                                    disabled={isReviewing}
                                 >
-                                    <XCircle className="w-4 h-4" />
+                                    {isReviewing ? (
+                                        <span className="animate-spin">⏳</span>
+                                    ) : (
+                                        <XCircle className="w-4 h-4" />
+                                    )}
                                 </Button>
                             </div>
                         </motion.div>

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
-import { UserRole } from '@prisma/client';
+import { UserRole, AuditAction, EntityType } from '@prisma/client';
 
 // User creates a role request
 export const createRoleRequest = async (req: any, res: Response): Promise<void> => {
@@ -309,9 +309,9 @@ export const approveRoleRequest = async (req: any, res: Response): Promise<void>
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        entityType: 'USER',
+        entityType: EntityType.USER,
         entityId: roleRequest.userId,
-        action: 'ROLE_REQUEST_APPROVED',
+        action: AuditAction.ROLE_REQUEST_APPROVED,
         oldValue: JSON.stringify({ roles: currentRoles }),
         newValue: JSON.stringify({ roles: updatedRoles }),
         userId: adminId,
@@ -414,9 +414,9 @@ export const rejectRoleRequest = async (req: any, res: Response): Promise<void> 
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        entityType: 'USER',
+        entityType: EntityType.USER,
         entityId: roleRequest.userId,
-        action: 'ROLE_REQUEST_REJECTED',
+        action: AuditAction.ROLE_REQUEST_REJECTED,
         oldValue: JSON.stringify({ requestedRoles: roleRequest.requestedRoles }),
         newValue: JSON.stringify({ status: 'REJECTED' }),
         userId: adminId,

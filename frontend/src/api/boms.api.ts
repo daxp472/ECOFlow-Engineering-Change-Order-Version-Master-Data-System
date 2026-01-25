@@ -70,5 +70,9 @@ export const bomsApi = {
     },
     removeOperation: async (bomId: string, operationId: string) => {
         await api.delete(`/boms/${bomId}/operations/${operationId}`);
+    },
+    publish: async (bomId: string) => {
+        const response = await api.post<any>(`/boms/${bomId}/publish`);
+        return response.data.data?.bom;
     }
 };

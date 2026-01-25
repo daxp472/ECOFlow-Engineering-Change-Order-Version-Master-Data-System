@@ -4,28 +4,48 @@ import prisma from '../config/database';
 // Create product
 export const createProduct = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name } = req.body;
+    const { name, salePrice, costPrice } = req.body;
 
     if (!name) {
       res.status(400).json({ status: 'error', message: 'Product name is required' });
       return;
     }
 
+    // Validate prices
+    const sale = salePrice ? parseFloat(salePrice) : 0;
+    const cost = costPrice ? parseFloat(costPrice) : 0;
+
+    if (sale < 0 || cost < 0) {
+      res.status(400).json({ status: 'error', message: 'Prices must be greater than or equal to 0' });
+      return;
+    }
+
     const product = await prisma.product.create({
       data: {
         name,
-        status: 'DRAFT',
+        status: 'ACTIVE', // Products are created as ACTIVE
         versions: {
           create: {
             version: 'v1.0',
-            salePrice: 0,
-            costPrice: 0,
-            status: 'DRAFT',
+            salePrice: sale,
+            costPrice: cost,
+            status: 'ACTIVE', // Initial version is ACTIVE
           },
         },
       },
-      include: { versions: true },
+      include: { 
+        versions: true,
+        currentVersion: true
+      },
     });
+
+    // Set the first version as current version
+    if (product.versions[0]) {
+      await prisma.product.update({
+        where: { id: product.id },
+        data: { currentVersionId: product.versions[0].id },
+      });
+    }
 
     res.status(201).json({
       status: 'success',
@@ -112,7 +132,6 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
     const { id } = req.params;
     const { name } = req.body;
 
-    // CRITICAL FIX: Prevent direct edits to ACTIVE products (must use ECO)
     const existingProduct = await prisma.product.findUnique({ 
       where: { id },
       select: { status: true, name: true }
@@ -123,15 +142,7 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    if (existingProduct.status === 'ACTIVE') {
-      res.status(400).json({ 
-        status: 'error', 
-        message: 'Cannot directly edit active products. Use ECO workflow to modify active products.' 
-      });
-      return;
-    }
-
-    // CRITICAL FIX: Prevent edits to ARCHIVED products
+    // CRITICAL: Prevent edits to ARCHIVED products
     if (existingProduct.status === 'ARCHIVED') {
       res.status(400).json({ 
         status: 'error', 
@@ -140,6 +151,8 @@ export const updateProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
+    // Allow product name changes for ACTIVE products (metadata only)
+    // Price/version changes must go through ECO workflow
     const product = await prisma.product.update({
       where: { id },
       data: { name },
@@ -251,13 +264,11 @@ export const createProductVersion = async (req: Request, res: Response): Promise
   }
 };
 
-// CRITICAL FIX: Update product version with immutability protection (Rule C2)
+// CRITICAL: Product versions are immutable once created (use ECO workflow for changes)
 export const updateProductVersion = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params; // version ID
-    const { salePrice, costPrice, attachments } = req.body;
+    const { id } = req.params;
 
-    // Check if version exists
     const existingVersion = await prisma.productVersion.findUnique({ 
       where: { id },
       select: { status: true, version: true, productId: true }
@@ -268,11 +279,11 @@ export const updateProductVersion = async (req: Request, res: Response): Promise
       return;
     }
 
-    // CRITICAL: Enforce version immutability for ACTIVE/ARCHIVED versions
+    // CRITICAL: Versions are immutable - all changes must go through ECO workflow
     if (existingVersion.status === 'ACTIVE') {
       res.status(400).json({ 
         status: 'error', 
-        message: 'Cannot modify active product versions. Create a new version via ECO workflow to maintain version history integrity.' 
+        message: 'Cannot modify active product versions. Use ECO workflow to create new versions.' 
       });
       return;
     }
@@ -280,37 +291,25 @@ export const updateProductVersion = async (req: Request, res: Response): Promise
     if (existingVersion.status === 'ARCHIVED') {
       res.status(400).json({ 
         status: 'error', 
-        message: 'Cannot modify archived product versions. Archived versions are immutable for traceability.' 
+        message: 'Cannot modify archived versions. Archived data is immutable for traceability.' 
       });
       return;
     }
 
-    // Only allow updates to DRAFT versions
-    const updated = await prisma.productVersion.update({
-      where: { id },
-      data: {
-        salePrice: salePrice !== undefined ? salePrice : undefined,
-        costPrice: costPrice !== undefined ? costPrice : undefined,
-        attachments: attachments !== undefined ? attachments : undefined,
-      },
-    });
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Product version updated successfully',
-      data: { version: updated },
+    res.status(400).json({
+      status: 'error',
+      message: 'Product versions cannot be edited. Use ECO workflow for all modifications.',
     });
   } catch (error: any) {
     res.status(500).json({ status: 'error', message: 'Failed to update product version' });
   }
 };
 
-// CRITICAL FIX: Delete product with ACTIVE protection
+// Delete product - only ARCHIVED products can be deleted (requires explicit confirmation)
 export const deleteProduct = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
-    // Check product status before deletion
     const product = await prisma.product.findUnique({
       where: { id },
       select: { status: true, name: true }
@@ -321,25 +320,16 @@ export const deleteProduct = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    // CRITICAL: Prevent deletion of ACTIVE products (must archive instead)
+    // CRITICAL: ACTIVE products cannot be deleted - must archive first
     if (product.status === 'ACTIVE') {
       res.status(400).json({ 
         status: 'error', 
-        message: 'Cannot delete active products. Use archive endpoint to archive active products instead.' 
+        message: 'Cannot delete active products. Archive the product first.' 
       });
       return;
     }
 
-    // CRITICAL: Prevent deletion of ARCHIVED products (preserve history)
-    if (product.status === 'ARCHIVED') {
-      res.status(400).json({ 
-        status: 'error', 
-        message: 'Cannot delete archived products. Archived products must be retained for audit trail.' 
-      });
-      return;
-    }
-
-    // Only allow deletion of DRAFT products
+    // Only ARCHIVED products can be deleted (for cleanup/compliance)
     await prisma.product.delete({ where: { id } });
 
     res.status(200).json({

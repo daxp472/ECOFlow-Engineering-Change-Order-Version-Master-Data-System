@@ -10,6 +10,10 @@ async function main() {
   await prisma.notification.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.eCOApproval.deleteMany();
+  await prisma.eCOBOMOperationDraft.deleteMany();
+  await prisma.eCOBOMComponentDraft.deleteMany();
+  await prisma.eCOAttachment.deleteMany();
+  await prisma.productAttachment.deleteMany();
   await prisma.eCO.deleteMany();
   await prisma.bOMOperation.deleteMany();
   await prisma.bOMComponent.deleteMany();
@@ -18,6 +22,7 @@ async function main() {
   await prisma.product.deleteMany();
   await prisma.approvalStage.deleteMany();
   await prisma.refreshToken.deleteMany();
+  await prisma.roleRequest.deleteMany();
   await prisma.user.deleteMany();
 
   console.log('🌱 Seeding fresh data...');
@@ -356,23 +361,7 @@ async function main() {
     include: { versions: true },
   });
 
-  // Draft product (new design)
-  const prototypeValve = await prisma.product.create({
-    data: {
-      name: 'Smart Valve SV-200 (Prototype)',
-      status: ProductStatus.DRAFT,
-      versions: {
-        create: {
-          version: 'v0.1',
-          salePrice: 0,
-          costPrice: 0,
-          status: ProductStatus.ARCHIVED,
-          attachments: JSON.stringify([]),
-        },
-      },
-    },
-    include: { versions: true },
-  });
+  // All products are created as ACTIVE now (no DRAFT status)
 
   // Update currentVersionId for all products
   await prisma.product.update({ where: { id: steelSheet.id }, data: { currentVersionId: steelSheet.versions[0].id } });
@@ -386,9 +375,8 @@ async function main() {
   await prisma.product.update({ where: { id: industrialPump.id }, data: { currentVersionId: industrialPump.versions[0].id } });
   await prisma.product.update({ where: { id: conveyorMotor.id }, data: { currentVersionId: conveyorMotor.versions[0].id } });
   await prisma.product.update({ where: { id: compressorUnit.id }, data: { currentVersionId: compressorUnit.versions[0].id } });
-  await prisma.product.update({ where: { id: prototypeValve.id }, data: { currentVersionId: prototypeValve.versions[0].id } });
 
-  console.log('   ✅ Created 12 products with versions');
+  console.log('   ✅ Created 11 products with versions');
 
   // ========================================
   // 4. CREATE BOMs (Bill of Materials)
@@ -487,30 +475,7 @@ async function main() {
     },
   });
 
-  // Draft BOM for prototype
-  await prisma.bOM.create({
-    data: {
-      productVersionId: prototypeValve.versions[0].id,
-      version: 'v0.1',
-      status: BOMStatus.DRAFT,
-      components: {
-        create: [
-          { productId: aluminumTube.id, quantity: 1 },
-          { productId: rubberSeal.id, quantity: 4 },
-          { productId: controlBoard.id, quantity: 1 },
-        ],
-      },
-      operations: {
-        create: [
-          { name: 'Valve Body Machining', time: 60, workCenter: 'WC-CNC-01', sequence: 1 },
-          { name: 'Seal Installation', time: 15, workCenter: 'WC-ASM-01', sequence: 2 },
-          { name: 'Electronics Integration', time: 30, workCenter: 'WC-ELEC-01', sequence: 3 },
-        ],
-      },
-    },
-  });
-
-  console.log('   ✅ Created 4 BOMs with components and operations');
+  console.log('   ✅ Created 3 BOMs with components and operations');
 
   // ========================================
   // 5. CREATE ECOs (Engineering Change Orders)
@@ -726,8 +691,8 @@ async function main() {
   console.log('📊 Summary:');
   console.log('   • 10 Users (1 Admin, 3 Engineers, 2 Approvers, 3 Ops, 1 Pending)');
   console.log('   • 5 Approval Stages');
-  console.log('   • 12 Products (8 Components + 3 Finished + 1 Prototype)');
-  console.log('   • 4 BOMs with Components and Operations');
+  console.log('   • 11 Products (8 Components + 3 Finished)');
+  console.log('   • 3 BOMs with Components and Operations');
   console.log('   • 5 ECOs (1 Applied, 1 Approved, 1 In Progress, 1 Draft, 1 Rejected)');
   console.log('   • ECO Approvals for workflow demonstration');
   console.log('   • Audit Logs for traceability');

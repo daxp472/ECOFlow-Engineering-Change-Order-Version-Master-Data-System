@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Paperclip, Upload, X, Download, FileText, Image as ImageIcon, File } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { attachmentsApi, type Attachment } from '../../api/attachments.api';
-import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface AttachmentSectionProps {
@@ -20,7 +19,6 @@ export const AttachmentSection: React.FC<AttachmentSectionProps> = ({
     canUpload,
     canDelete,
 }) => {
-    const { user } = useAuth();
     const [attachments, setAttachments] = useState<Attachment[]>([]);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
@@ -118,11 +116,11 @@ export const AttachmentSection: React.FC<AttachmentSectionProps> = ({
                 </h2>
                 {showUploadButton && (
                     <label className="cursor-pointer">
-                        <div className="inline-block">
+                        <div className="inline-flex">
                             <Button
                                 size="sm"
                                 disabled={uploading}
-                                className="flex items-center gap-2 pointer-events-none"
+                                className="flex items-center gap-2"
                             >
                                 <Upload className="w-4 h-4" />
                                 {uploading ? 'Uploading...' : 'Upload'}

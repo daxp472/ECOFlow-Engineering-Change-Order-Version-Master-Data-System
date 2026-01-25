@@ -3,7 +3,7 @@ import { api } from './client';
 export interface Product {
     id: string;
     name: string;
-    status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+    status: 'ACTIVE' | 'ARCHIVED';
     currentVersionId?: string;
     createdAt: string;
     updatedAt: string;
@@ -17,7 +17,7 @@ export interface ProductVersion {
     version: string;
     salePrice: number;
     costPrice: number;
-    status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+    status: 'ACTIVE' | 'ARCHIVED';
     createdAt: string;
     updatedAt: string;
 }
