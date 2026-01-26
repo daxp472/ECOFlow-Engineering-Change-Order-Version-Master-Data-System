@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning';
 
@@ -30,7 +31,7 @@ export const useNotifications = () => {
 
 export const NotificationProvider = ({ children }: { children: React.ReactNode }) => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    const { user } = useAuth();
+    const { user, logout } = useAuth();
 
     const addNotification = (type: NotificationType, message: string, duration = 5000) => {
         const id = Math.random().toString(36).substr(2, 9);
@@ -63,6 +64,17 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
                 }
 
                 if (data.type === 'unread_count') {
+                    return;
+                }
+
+                // Handle force logout event (when admin changes user roles)
+                if (data.type === 'force_logout') {
+                    addNotification('warning', data.reason || 'Your session has been terminated. Please log in again.');
+                    eventSource.close();
+                    setTimeout(() => {
+                        logout();
+                        window.location.href = '/login';
+                    }, 1500);
                     return;
                 }
 

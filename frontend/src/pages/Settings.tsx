@@ -142,13 +142,19 @@ export const SettingsPage = () => {
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-zinc-400">Email Address</label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white placeholder-zinc-500 focus:outline-none focus:border-primary"
-                                placeholder="name@company.com"
-                            />
+                            <div className="relative">
+                                <input
+                                    type="email"
+                                    value={email}
+                                    disabled
+                                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-zinc-400 cursor-not-allowed"
+                                    placeholder="name@company.com"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 bg-zinc-700 px-2 py-0.5 rounded">
+                                    🔒 Locked
+                                </span>
+                            </div>
+                            <p className="text-xs text-zinc-500">Email cannot be changed. Contact admin for assistance.</p>
                         </div>
                         <Button type="submit" disabled={loading} className="w-full mt-4 flex items-center justify-center gap-2">
                             <Save className="w-4 h-4" /> Save Changes

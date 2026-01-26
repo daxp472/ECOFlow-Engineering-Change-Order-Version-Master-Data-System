@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { UserRole, AuditAction, EntityType } from '@prisma/client';
+import { forceLogoutUser } from './notification.controller';
 
 // Assign roles to user (Admin only)
 export const assignRoles = async (req: Request, res: Response): Promise<void> => {
@@ -54,9 +55,12 @@ export const assignRoles = async (req: Request, res: Response): Promise<void> =>
       },
     });
 
+    // CRITICAL: Force logout user so they get new JWT with updated roles
+    await forceLogoutUser(id, `Your roles have been updated to: ${roles.join(', ')}. Please login again to access your new permissions.`);
+
     res.status(200).json({
       status: 'success',
-      message: 'Roles assigned successfully',
+      message: 'Roles assigned successfully. User will be logged out automatically.',
       data: user,
     });
   } catch (error) {
@@ -129,9 +133,12 @@ export const addRole = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
+    // CRITICAL: Force logout user so they get new JWT with updated roles
+    await forceLogoutUser(id, `Role "${role}" has been added to your account. Please login again to access your new permissions.`);
+
     res.status(200).json({
       status: 'success',
-      message: 'Role added successfully',
+      message: 'Role added successfully. User will be logged out automatically.',
       data: updatedUser,
     });
   } catch (error) {
@@ -213,9 +220,12 @@ export const removeRole = async (req: Request, res: Response): Promise<void> => 
       },
     });
 
+    // CRITICAL: Force logout user so they get new JWT with updated roles
+    await forceLogoutUser(id, `Role "${role}" has been removed from your account. Please login again.`);
+
     res.status(200).json({
       status: 'success',
-      message: 'Role removed successfully',
+      message: 'Role removed successfully. User will be logged out automatically.',
       data: updatedUser,
     });
   } catch (error) {

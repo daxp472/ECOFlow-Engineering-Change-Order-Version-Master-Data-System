@@ -35,7 +35,7 @@ export const AppLayout = () => {
         { icon: GitPullRequest, label: 'ECOs', path: '/ecos' },
         { icon: FileText, label: 'Reports', path: '/reports' },
         { icon: User, label: 'Users', path: '/users', adminOnly: true },
-        { icon: Settings, label: 'Settings', path: '/settings', adminOnly: true },
+        { icon: Settings, label: 'Settings', path: '/settings' }, // Available to all users
     ];
 
     // Add Role Requests for non-admin users only

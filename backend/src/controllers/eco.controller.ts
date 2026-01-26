@@ -615,10 +615,11 @@ export const submitECO = async (req: Request, res: Response): Promise<void> => {
 };
 
 // Approve/Reject ECO
+// Supports fullApproval: true - approves all remaining stages in one click
 export const reviewECO = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { approved, comments } = req.body;
+    const { approved, comments, fullApproval } = req.body; // fullApproval = approve all stages at once
     const userId = (req as any).user.userId;
 
     const eco = await prisma.eCO.findUnique({ where: { id } });
@@ -633,10 +634,11 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Get all approval stages
+    const allStages = await prisma.approvalStage.findMany({ orderBy: { order: 'asc' } });
+    
     // Get current stage
-    const currentStage = await prisma.approvalStage.findFirst({
-      where: { name: eco.currentStage },
-    });
+    const currentStage = allStages.find(s => s.name === eco.currentStage);
 
     if (!currentStage) {
       console.error(`❌ Invalid approval stage: ECO ${id} has currentStage="${eco.currentStage}" which doesn't exist in approval_stages table`);
@@ -647,6 +649,102 @@ export const reviewECO = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // FULL APPROVAL MODE: Approve all remaining stages at once
+    if (fullApproval && approved) {
+      const result = await prisma.$transaction(async (tx) => {
+        const currentStageIndex = allStages.findIndex(s => s.id === currentStage.id);
+        const remainingStages = allStages.slice(currentStageIndex);
+        
+        // Create approval records for all remaining stages
+        for (const stage of remainingStages) {
+          // Skip if approval already exists for this stage
+          const existingApproval = await tx.eCOApproval.findFirst({
+            where: { ecoId: id, stageId: stage.id }
+          });
+          
+          if (!existingApproval) {
+            await tx.eCOApproval.create({
+              data: {
+                ecoId: id,
+                stageId: stage.id,
+                approvedBy: userId,
+                approvedAt: new Date(),
+                status: ApprovalStatus.APPROVED,
+                comments: stage.isFinal ? comments : `Auto-approved (Full Approval by Admin)`,
+              },
+            });
+          }
+        }
+
+        // Create audit log for full approval
+        await tx.auditLog.create({
+          data: {
+            action: AuditAction.APPROVE,
+            entityType: EntityType.ECO_APPROVAL,
+            entityId: id,
+            userId,
+            ecoId: id,
+            stage: 'Full Approval',
+            oldValue: { stage: eco.currentStage, status: eco.status },
+            newValue: { approved: true, fullApproval: true, comments, timestamp: new Date() },
+            comments: `ECO fully approved (all stages) from stage: ${eco.currentStage}`,
+          },
+        });
+
+        // Get final stage
+        const finalStage = allStages[allStages.length - 1];
+
+        // Update ECO to final stage and APPROVED status
+        await tx.eCO.update({
+          where: { id },
+          data: {
+            currentStage: finalStage.name,
+            status: ECOStatus.APPROVED,
+          },
+        });
+
+        // Auto-apply the ECO
+        const appliedResult = await applyECOInternal(id, userId, tx);
+
+        await tx.auditLog.create({
+          data: {
+            action: AuditAction.UPDATE,
+            entityType: EntityType.ECO,
+            entityId: id,
+            userId,
+            ecoId: id,
+            oldValue: { status: 'APPROVED' },
+            newValue: { status: 'APPLIED' },
+            comments: 'ECO automatically applied after full approval',
+          },
+        });
+
+        return { newStatus: ECOStatus.APPLIED, appliedResult };
+      });
+
+      res.status(200).json({
+        status: 'success',
+        message: 'ECO fully approved and applied successfully',
+        data: {
+          newStatus: result.newStatus,
+          appliedResult: result.appliedResult
+        },
+      });
+
+      // Notify Creator
+      if (eco.createdBy) {
+        await sendNotificationToUser(eco.createdBy, {
+          type: 'ECO_APPROVED',
+          title: 'ECO Fully Approved',
+          message: `Your ECO "${eco.title}" has been FULLY APPROVED and APPLIED`,
+          data: { ecoId: eco.id }
+        });
+      }
+
+      return;
+    }
+
+    // STANDARD SINGLE-STAGE APPROVAL (original behavior)
     // CRITICAL FIX: Wrap entire review process in transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create approval record

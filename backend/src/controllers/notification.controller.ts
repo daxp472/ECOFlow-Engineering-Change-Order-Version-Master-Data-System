@@ -4,6 +4,30 @@ import prisma from '../config/database';
 // Store active SSE connections
 const clients = new Map<string, Response>();
 
+// Force logout a specific user by sending SSE event and invalidating tokens
+export const forceLogoutUser = async (userId: string, reason: string = 'Your roles have been updated. Please login again.'): Promise<void> => {
+  try {
+    // Delete all refresh tokens for this user
+    await prisma.refreshToken.deleteMany({
+      where: { userId },
+    });
+
+    // Send force_logout event via SSE if user is connected
+    const client = clients.get(userId);
+    if (client) {
+      client.write(`data: ${JSON.stringify({ 
+        type: 'force_logout', 
+        message: reason,
+        timestamp: new Date().toISOString()
+      })}\n\n`);
+    }
+
+    console.log(`🔐 Force logout triggered for user ${userId}: ${reason}`);
+  } catch (error) {
+    console.error('Error forcing logout:', error);
+  }
+};
+
 // SSE endpoint for real-time notifications
 export const streamEvents = (req: any, res: Response): void => {
   const userId = req.user?.userId;

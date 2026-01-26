@@ -15,6 +15,7 @@ export const BOMDetail = () => {
     const { user } = useAuth();
     const [bom, setBom] = useState<BOM | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isPublishing, setIsPublishing] = useState(false);
     const [showAddComponent, setShowAddComponent] = useState(false);
     const [showAddOperation, setShowAddOperation] = useState(false);
     const [newComponent, setNewComponent] = useState({ productId: '', quantity: 1 });
@@ -135,7 +136,7 @@ export const BOMDetail = () => {
     };
 
     const handlePublish = async () => {
-        if (!bom) return;
+        if (!bom || isPublishing) return;
         
         // Validation checks
         if (bom.components.length === 0) {
@@ -153,13 +154,16 @@ export const BOMDetail = () => {
         
         if (!confirmPublish) return;
         
+        setIsPublishing(true);
         try {
             await bomsApi.publish(bom.id);
-            loadBOM(bom.id);
-            alert('BOM published successfully!');
+            alert('✅ BOM published successfully!');
+            await loadBOM(bom.id);
         } catch (error: any) {
             console.error('Failed to publish BOM', error);
-            alert(error?.response?.data?.message || 'Failed to publish BOM');
+            alert('❌ ' + (error?.response?.data?.message || 'Failed to publish BOM'));
+        } finally {
+            setIsPublishing(false);
         }
     };
 
@@ -205,8 +209,10 @@ export const BOMDetail = () => {
                         <Button 
                             onClick={handlePublish}
                             className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
+                            disabled={isPublishing}
+                            isLoading={isPublishing}
                         >
-                            <Plus className="w-4 h-4" /> Publish BOM
+                            <Plus className="w-4 h-4" /> {isPublishing ? 'Publishing...' : 'Publish BOM'}
                         </Button>
                     )}
                     {isEngineering && bom.status === 'ACTIVE' && (

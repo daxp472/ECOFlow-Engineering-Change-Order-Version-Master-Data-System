@@ -5,8 +5,16 @@ import type { ECO } from '../api/ecos.api';
 import { Button } from '../components/ui/Button';
 import { AttachmentSection } from '../components/ui/AttachmentSection';
 import { useAuth } from '../context/AuthContext';
-import { ArrowLeft, CheckCircle, XCircle, Clock, FileText, Send } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Clock, FileText, Send, Circle } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+// Approval stages in order (matches backend seed)
+const APPROVAL_STAGES = [
+    { name: 'Engineering Review', order: 2 },
+    { name: 'Manager Approval', order: 3 },
+    { name: 'Operations Review', order: 4 },
+    { name: 'Final Approval', order: 5 },
+];
 
 export const ECODetail = () => {
     const { id } = useParams<{ id: string }>();
@@ -58,16 +66,22 @@ export const ECODetail = () => {
         }
     };
 
-    const handleReview = async (status: 'APPROVED' | 'REJECTED') => {
+    const handleReview = async (status: 'APPROVED' | 'REJECTED', fullApproval: boolean = false) => {
         if (!eco || isReviewing) return;
         
         setIsReviewing(true);
         try {
-            await ecosApi.review(eco.id, status, reviewComment);
+            await ecosApi.review(eco.id, status, reviewComment, fullApproval);
             setReviewComment('');
+            const statusText = fullApproval 
+                ? 'fully approved and applied' 
+                : (status === 'APPROVED' ? 'approved' : 'rejected');
+            alert(`✅ ECO ${statusText} successfully!`);
             await loadECO(eco.id);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to review ECO', error);
+            const errorMsg = error?.response?.data?.message || 'Failed to review ECO';
+            alert('❌ ' + errorMsg);
         } finally {
             setIsReviewing(false);
         }
@@ -264,13 +278,65 @@ export const ECODetail = () => {
 
                 {/* Sidebar - Actions & Timeline */}
                 <div className="space-y-6">
+                    {/* Approval Stages Progress */}
+                    {eco.status === 'IN_PROGRESS' && (
+                        <motion.div
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="glass-card p-6 rounded-xl border border-white/5"
+                        >
+                            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                                <Circle className="w-5 h-5 text-blue-500" />
+                                Approval Progress
+                            </h3>
+                            <div className="space-y-3">
+                                {APPROVAL_STAGES.map((stage, index) => {
+                                    const currentStageIndex = APPROVAL_STAGES.findIndex(s => s.name === eco.currentStage);
+                                    const isCompleted = index < currentStageIndex;
+                                    const isCurrent = stage.name === eco.currentStage;
+                                    const isPending = index > currentStageIndex;
+                                    
+                                    return (
+                                        <div key={stage.name} className="flex items-center gap-3">
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                                isCompleted ? 'bg-emerald-500 text-white' :
+                                                isCurrent ? 'bg-blue-500 text-white animate-pulse' :
+                                                'bg-zinc-700 text-zinc-400'
+                                            }`}>
+                                                {isCompleted ? '✓' : index + 1}
+                                            </div>
+                                            <span className={`text-sm ${
+                                                isCompleted ? 'text-emerald-400 line-through' :
+                                                isCurrent ? 'text-blue-400 font-semibold' :
+                                                'text-zinc-500'
+                                            }`}>
+                                                {stage.name}
+                                            </span>
+                                            {isCurrent && (
+                                                <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">
+                                                    Current
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-xs text-zinc-500 mt-4 border-t border-zinc-800 pt-3">
+                                💡 One-click full approval available below.
+                            </p>
+                        </motion.div>
+                    )}
+
                     {canReview && (
                         <motion.div
                             initial={{ opacity: 0, x: 10 }}
                             animate={{ opacity: 1, x: 0 }}
                             className="glass-card p-6 rounded-xl border border-white/5 bg-primary/5"
                         >
-                            <h3 className="text-lg font-semibold text-white mb-4">Review Action</h3>
+                            <h3 className="text-lg font-semibold text-white mb-2">Review Action</h3>
+                            <p className="text-sm text-blue-400 mb-4">
+                                📋 Current Stage: <span className="font-semibold">{eco.currentStage}</span>
+                            </p>
                             <div className="space-y-4">
                                 <textarea
                                     className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white placeholder-zinc-500 focus:outline-none focus:border-primary resize-none h-24"
@@ -279,38 +345,58 @@ export const ECODetail = () => {
                                     onChange={(e) => setReviewComment(e.target.value)}
                                     disabled={isReviewing}
                                 />
-                                <div className="grid grid-cols-2 gap-3">
-                                    <Button
-                                        onClick={() => handleReview('APPROVED')}
-                                        className="bg-emerald-600 hover:bg-emerald-700 w-full"
-                                        disabled={isReviewing}
-                                    >
-                                        {isReviewing ? (
-                                            <>
-                                                <span className="animate-spin mr-2">⏳</span> Processing...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <CheckCircle className="w-4 h-4 mr-2" /> Approve
-                                            </>
-                                        )}
-                                    </Button>
-                                    <Button
-                                        onClick={() => handleReview('REJECTED')}
-                                        variant="outline"
-                                        className="border-rose-500/50 text-rose-500 hover:bg-rose-500/10 w-full"
-                                        disabled={isReviewing}
-                                    >
-                                        {isReviewing ? (
-                                            <>
-                                                <span className="animate-spin mr-2">⏳</span> Processing...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <XCircle className="w-4 h-4 mr-2" /> Reject
-                                            </>
-                                        )}
-                                    </Button>
+                                
+                                {/* Full Approve Button - One Click to Approve All Stages */}
+                                <Button
+                                    onClick={() => handleReview('APPROVED', true)}
+                                    className="bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-700 hover:to-green-600 w-full py-3 text-lg font-semibold shadow-lg shadow-emerald-500/20"
+                                    disabled={isReviewing}
+                                >
+                                    {isReviewing ? (
+                                        <>
+                                            <span className="animate-spin mr-2">⏳</span> Processing...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle className="w-5 h-5 mr-2" /> ✨ Full Approve &amp; Apply
+                                        </>
+                                    )}
+                                </Button>
+                                <p className="text-xs text-center text-emerald-400/70">
+                                    Approves all remaining stages and applies the ECO immediately
+                                </p>
+
+                                <div className="border-t border-zinc-700 pt-4 mt-2">
+                                    <p className="text-xs text-zinc-500 mb-3 text-center">Or approve/reject current stage only:</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <Button
+                                            onClick={() => handleReview('APPROVED', false)}
+                                            className="bg-zinc-700 hover:bg-zinc-600 w-full text-sm"
+                                            disabled={isReviewing}
+                                        >
+                                            {isReviewing ? (
+                                                <span className="animate-spin">⏳</span>
+                                            ) : (
+                                                <>
+                                                    <CheckCircle className="w-4 h-4 mr-1" /> Approve Stage
+                                                </>
+                                            )}
+                                        </Button>
+                                        <Button
+                                            onClick={() => handleReview('REJECTED', false)}
+                                            variant="outline"
+                                            className="border-rose-500/50 text-rose-500 hover:bg-rose-500/10 w-full text-sm"
+                                            disabled={isReviewing}
+                                        >
+                                            {isReviewing ? (
+                                                <span className="animate-spin">⏳</span>
+                                            ) : (
+                                                <>
+                                                    <XCircle className="w-4 h-4 mr-1" /> Reject
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
@@ -326,7 +412,7 @@ export const ECODetail = () => {
                             <p className="text-sm text-zinc-400 mb-4">As ADMIN, you can directly approve this ECO</p>
                             <div className="flex gap-3">
                                 <Button
-                                    onClick={() => handleReview('APPROVED')}
+                                    onClick={() => handleReview('APPROVED', true)}
                                     className="bg-emerald-600 hover:bg-emerald-700 flex-1"
                                     disabled={isReviewing}
                                 >
@@ -336,12 +422,12 @@ export const ECODetail = () => {
                                         </>
                                     ) : (
                                         <>
-                                            <CheckCircle className="w-4 h-4 mr-2" /> Approve ECO
+                                            <CheckCircle className="w-4 h-4 mr-2" /> ✨ Full Approve &amp; Apply
                                         </>
                                     )}
                                 </Button>
                                 <Button
-                                    onClick={() => handleReview('REJECTED')}
+                                    onClick={() => handleReview('REJECTED', false)}
                                     variant="outline"
                                     className="border-rose-500/50 text-rose-500 hover:bg-rose-500/10"
                                     disabled={isReviewing}

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import prisma from '../config/database';
 import { UserRole, AuditAction, EntityType } from '@prisma/client';
+import { forceLogoutUser } from './notification.controller';
 
 // User creates a role request
 export const createRoleRequest = async (req: any, res: Response): Promise<void> => {
@@ -330,9 +331,12 @@ export const approveRoleRequest = async (req: any, res: Response): Promise<void>
       },
     });
 
+    // CRITICAL: Force logout user so they get new JWT with updated roles
+    await forceLogoutUser(roleRequest.userId, `Your role request has been approved! New roles: ${roleRequest.requestedRoles.join(', ')}. Please login again to access your new permissions.`);
+
     res.status(200).json({
       status: 'success',
-      message: 'Role request approved successfully',
+      message: 'Role request approved successfully. User will be logged out automatically.',
       data: { 
         roleRequest: updatedRequest,
         user: updatedUser,

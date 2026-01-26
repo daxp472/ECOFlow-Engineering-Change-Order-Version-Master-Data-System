@@ -109,10 +109,11 @@ export const ecosApi = {
         const response = await api.post<any>(`/ecos/${id}/submit`);
         return response.data.data?.eco;
     },
-    review: async (id: string, status: 'APPROVED' | 'REJECTED', comments: string) => {
+    review: async (id: string, status: 'APPROVED' | 'REJECTED', comments: string, fullApproval: boolean = false) => {
         const response = await api.post<any>(`/ecos/${id}/review`, { 
             approved: status === 'APPROVED', 
-            comments 
+            comments,
+            fullApproval // When true, approves all remaining stages at once
         });
         return response.data.data;
     },
